@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package proton;
+
+service Proton {
+
+  rpc Join(NodeInfo) returns (JoinResponse) {}
+
+  rpc Receive(Message) returns (Acknowledgment) {}
+
+}
+
+message Acknowledgment {}
+
+message Message {}
+
+message JoinResponse {
+  repeated NodeInfo info = 1;
+}
+
+message NodeInfo {
+  string ID = 1;
+  string Addr = 2;
+  string Port = 4;
+}
