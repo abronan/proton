@@ -5,12 +5,12 @@ import "sync"
 type Cluster struct {
 	sync.RWMutex
 
-	Nodes map[string]*Node
+	Nodes map[uint64]*Node
 }
 
 func NewCluster() *Cluster {
 	return &Cluster{
-		Nodes: make(map[string]*Node),
+		Nodes: make(map[uint64]*Node),
 	}
 }
 
@@ -22,7 +22,7 @@ func (t *Cluster) AddNodes(node *Node) {
 }
 
 // Add a node to our neighbors
-func (t *Cluster) RemoveNode(id string) {
+func (t *Cluster) RemoveNode(id uint64) {
 	t.Lock()
 	delete(t.Nodes, id)
 	t.Unlock()

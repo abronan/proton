@@ -3,12 +3,14 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	"github.com/abronan/proton"
 	"github.com/codegangsta/cli"
+	"github.com/coreos/etcd/raft"
 )
 
 func join(c *cli.Context) {
@@ -23,14 +25,19 @@ func join(c *cli.Context) {
 
 	joinAddr := c.String("join")
 
-	cluster := proton.NewCluster()
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("can't get hostname")
+	}
+
+	node := proton.NewNode(hostname, []raft.Peer{})
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	server := grpc.NewServer()
-	proton.Register(server, cluster)
+	proton.Register(server, node)
 
 	conn, err := grpc.Dial(joinAddr, grpc.WithInsecure())
 	if err != nil {
@@ -38,6 +45,9 @@ func join(c *cli.Context) {
 	}
 	defer conn.Close()
 	p := proton.NewProtonClient(conn)
+
+	// Start raft
+	go node.Start()
 
 	info := &proton.NodeInfo{
 		Addr: hosts[0],

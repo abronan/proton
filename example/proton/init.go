@@ -2,12 +2,14 @@ package main
 
 import (
 	"net"
+	"os"
 
 	"google.golang.org/grpc"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/abronan/proton"
 	"github.com/codegangsta/cli"
+	"github.com/coreos/etcd/raft"
 )
 
 func initcluster(c *cli.Context) {
@@ -21,6 +23,15 @@ func initcluster(c *cli.Context) {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("can't get hostname")
+	}
+
+	node := proton.NewNode(hostname, []raft.Peer{})
+	node.Raft.Campaign(node.Ctx)
+	go node.Start()
 
 	log.Println("Starting raft transport layer..")
 	proton.Register(s, nil)

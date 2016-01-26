@@ -1,18 +1,18 @@
 syntax = "proto3";
-
 package proton;
+
+import "github.com/coreos/etcd/raft/raftpb/raft.proto";
+import weak "gogoproto/gogo.proto";
 
 service Proton {
 
   rpc Join(NodeInfo) returns (JoinResponse) {}
 
-  rpc Receive(Message) returns (Acknowledgment) {}
+  rpc Send(raftpb.Message) returns (Acknowledgment) {}
 
 }
 
 message Acknowledgment {}
-
-message Message {}
 
 message JoinResponse {
   repeated NodeInfo info = 1;

@@ -10,7 +10,6 @@
 
 	It has these top-level messages:
 		Acknowledgment
-		Message
 		JoinResponse
 		NodeInfo
 */
@@ -19,6 +18,9 @@ package proton
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import raftpb "github.com/coreos/etcd/raft/raftpb"
+
+// skipping weak import gogoproto "gogoproto"
 
 import (
 	context "golang.org/x/net/context"
@@ -38,13 +40,6 @@ type Acknowledgment struct {
 func (m *Acknowledgment) Reset()         { *m = Acknowledgment{} }
 func (m *Acknowledgment) String() string { return proto.CompactTextString(m) }
 func (*Acknowledgment) ProtoMessage()    {}
-
-type Message struct {
-}
-
-func (m *Message) Reset()         { *m = Message{} }
-func (m *Message) String() string { return proto.CompactTextString(m) }
-func (*Message) ProtoMessage()    {}
 
 type JoinResponse struct {
 	Info []*NodeInfo `protobuf:"bytes,1,rep,name=info" json:"info,omitempty"`
@@ -73,7 +68,6 @@ func (*NodeInfo) ProtoMessage()    {}
 
 func init() {
 	proto.RegisterType((*Acknowledgment)(nil), "proton.Acknowledgment")
-	proto.RegisterType((*Message)(nil), "proton.Message")
 	proto.RegisterType((*JoinResponse)(nil), "proton.JoinResponse")
 	proto.RegisterType((*NodeInfo)(nil), "proton.NodeInfo")
 }
@@ -86,7 +80,7 @@ var _ grpc.ClientConn
 
 type ProtonClient interface {
 	Join(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinResponse, error)
-	Receive(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Acknowledgment, error)
+	Send(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Acknowledgment, error)
 }
 
 type protonClient struct {
@@ -106,9 +100,9 @@ func (c *protonClient) Join(ctx context.Context, in *NodeInfo, opts ...grpc.Call
 	return out, nil
 }
 
-func (c *protonClient) Receive(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Acknowledgment, error) {
+func (c *protonClient) Send(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Acknowledgment, error) {
 	out := new(Acknowledgment)
-	err := grpc.Invoke(ctx, "/proton.Proton/Receive", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/proton.Proton/Send", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +113,7 @@ func (c *protonClient) Receive(ctx context.Context, in *Message, opts ...grpc.Ca
 
 type ProtonServer interface {
 	Join(context.Context, *NodeInfo) (*JoinResponse, error)
-	Receive(context.Context, *Message) (*Acknowledgment, error)
+	Send(context.Context, *raftpb.Message) (*Acknowledgment, error)
 }
 
 func RegisterProtonServer(s *grpc.Server, srv ProtonServer) {
@@ -138,12 +132,12 @@ func _Proton_Join_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return out, nil
 }
 
-func _Proton_Receive_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
-	in := new(Message)
+func _Proton_Send_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(raftpb.Message)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(ProtonServer).Receive(ctx, in)
+	out, err := srv.(ProtonServer).Send(ctx, in)
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +153,8 @@ var _Proton_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Proton_Join_Handler,
 		},
 		{
-			MethodName: "Receive",
-			Handler:    _Proton_Receive_Handler,
+			MethodName: "Send",
+			Handler:    _Proton_Send_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{},
@@ -177,24 +171,6 @@ func (m *Acknowledgment) Marshal() (data []byte, err error) {
 }
 
 func (m *Acknowledgment) MarshalTo(data []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	return i, nil
-}
-
-func (m *Message) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *Message) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -301,12 +277,6 @@ func (m *Acknowledgment) Size() (n int) {
 	return n
 }
 
-func (m *Message) Size() (n int) {
-	var l int
-	_ = l
-	return n
-}
-
 func (m *JoinResponse) Size() (n int) {
 	var l int
 	_ = l
@@ -377,56 +347,6 @@ func (m *Acknowledgment) Unmarshal(data []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: Acknowledgment: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipProton(data[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthProton
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Message) Unmarshal(data []byte) error {
-	l := len(data)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowProton
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := data[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Message: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Message: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:

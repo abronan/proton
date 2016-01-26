@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-
-	"golang.org/x/net/context"
 )
 
 const (
@@ -41,48 +39,6 @@ type transport struct {
 	cluster *Cluster
 }
 
-// Join a new machine in the cluster
-func (t *transport) Join(ctx context.Context, in *NodeInfo) (*JoinResponse, error) {
-	go t.registerNode(in)
-
-	return &JoinResponse{}, nil
-}
-
-// Receive message from raft backend
-func (t *transport) Receive(ctx context.Context, in *Message) (*Acknowledgment, error) {
-	// TODO receive logic
-
-	return &Acknowledgment{}, nil
-}
-
-// Handle Node join event
-func (t *transport) registerNode(node *NodeInfo) {
-	var (
-		client ProtonClient
-		err    error
-	)
-
-	status := UP
-
-	for i := 1; i <= MaxRetryTime; i++ {
-		client, err = GetProtonClient(node.Addr)
-		if err != nil {
-			if i == MaxRetryTime {
-				status = DOWN
-			}
-		}
-	}
-
-	t.cluster.AddNodes(
-		&Node{
-			Client: client,
-			Status: status,
-			Error:  err,
-		},
-	)
-}
-
-// Listen initiates the gossip mechanism
-func Register(server *grpc.Server, cluster *Cluster) {
-	RegisterProtonServer(server, &transport{cluster: cluster})
+func Register(server *grpc.Server, node *Node) {
+	RegisterProtonServer(server, node)
 }
