@@ -57,7 +57,7 @@ func (m *JoinResponse) GetInfo() []*NodeInfo {
 }
 
 type NodeInfo struct {
-	ID   string `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	ID   uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Addr string `protobuf:"bytes,2,opt,name=Addr,proto3" json:"Addr,omitempty"`
 	Port string `protobuf:"bytes,4,opt,name=Port,proto3" json:"Port,omitempty"`
 }
@@ -223,11 +223,10 @@ func (m *NodeInfo) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		data[i] = 0xa
+	if m.ID != 0 {
+		data[i] = 0x8
 		i++
-		i = encodeVarintProton(data, i, uint64(len(m.ID)))
-		i += copy(data[i:], m.ID)
+		i = encodeVarintProton(data, i, uint64(m.ID))
 	}
 	if len(m.Addr) > 0 {
 		data[i] = 0x12
@@ -292,9 +291,8 @@ func (m *JoinResponse) Size() (n int) {
 func (m *NodeInfo) Size() (n int) {
 	var l int
 	_ = l
-	l = len(m.ID)
-	if l > 0 {
-		n += 1 + l + sovProton(uint64(l))
+	if m.ID != 0 {
+		n += 1 + sovProton(uint64(m.ID))
 	}
 	l = len(m.Addr)
 	if l > 0 {
@@ -481,10 +479,10 @@ func (m *NodeInfo) Unmarshal(data []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
 			}
-			var stringLen uint64
+			m.ID = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowProton
@@ -494,21 +492,11 @@ func (m *NodeInfo) Unmarshal(data []byte) error {
 				}
 				b := data[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				m.ID |= (uint64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthProton
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ID = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Addr", wireType)

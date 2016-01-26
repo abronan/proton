@@ -17,6 +17,7 @@ import (
 
 var (
 	ErrConnectionRefused = errors.New("Connection refused to the node")
+	ErrConfChangeRefused = errors.New("Can't add node to the cluster")
 )
 
 type Node struct {
@@ -138,45 +139,56 @@ func (n *Node) receive(ctx context.Context, message raftpb.Message) {
 }
 
 // Join a new machine in the cluster
-func (n *Node) Join(ctx context.Context, in *NodeInfo) (*JoinResponse, error) {
-	go n.registerNode(in)
+func (n *Node) Join(ctx context.Context, info *NodeInfo) (*JoinResponse, error) {
+	err := n.registerNode(info)
+	if err != nil {
+		// TODO send appropriate failure response
+		return &JoinResponse{}, nil
+	}
 
-	// TODO propose conf change
-
+	// TODO send success message to the remote caller
 	return &JoinResponse{}, nil
 }
 
 // Receive message from raft backend
-func (n *Node) Send(ctx context.Context, in *raftpb.Message) (*Acknowledgment, error) {
-
-	// TODO receive logic
+func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
+	n.Raft.Step(n.Ctx, *message)
 
 	return &Acknowledgment{}, nil
 }
 
-// Handle Node join event
-func (n *Node) registerNode(node *NodeInfo) {
+// Register the node on the raft cluster
+func (n *Node) registerNode(node *NodeInfo) error {
 	var (
 		client ProtonClient
 		err    error
 	)
 
-	status := UP
-
 	for i := 1; i <= MaxRetryTime; i++ {
 		client, err = GetProtonClient(node.Addr)
 		if err != nil {
 			if i == MaxRetryTime {
-				status = DOWN
+				return ErrConnectionRefused
 			}
 		}
+	}
+
+	err = n.Raft.ProposeConfChange(n.Ctx, raftpb.ConfChange{
+		ID:      node.ID,
+		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  node.ID,
+		Context: []byte(""),
+	})
+	if err != nil {
+		return ErrConfChangeRefused
 	}
 
 	n.Cluster.AddNodes(
 		&Node{
 			Client: client,
-			Status: status,
 			Error:  err,
 		},
 	)
+
+	return nil
 }

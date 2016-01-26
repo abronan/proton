@@ -19,7 +19,7 @@ message JoinResponse {
 }
 
 message NodeInfo {
-  string ID = 1;
+  uint64 ID = 1;
   string Addr = 2;
   string Port = 4;
 }
