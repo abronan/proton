@@ -10,7 +10,6 @@ import (
 
 	"github.com/abronan/proton"
 	"github.com/codegangsta/cli"
-	"github.com/coreos/etcd/raft"
 )
 
 func join(c *cli.Context) {
@@ -30,7 +29,8 @@ func join(c *cli.Context) {
 		log.Fatalf("can't get hostname")
 	}
 
-	node := proton.NewNode(hostname, []raft.Peer{})
+	id := proton.GenID(hostname)
+	node := proton.NewNode(id)
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {
@@ -50,6 +50,7 @@ func join(c *cli.Context) {
 	go node.Start()
 
 	info := &proton.NodeInfo{
+		ID:   id,
 		Addr: hosts[0],
 	}
 
@@ -60,6 +61,8 @@ func join(c *cli.Context) {
 	log.Printf("Ack: %s", resp)
 
 	go server.Serve(lis)
+
+	// TODO loop and print values
 
 	select {}
 }

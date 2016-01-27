@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/abronan/proton"
-	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
 )
 
@@ -14,15 +13,17 @@ var (
 )
 
 func main() {
-	// start a small cluster
-	nodes[1] = proton.NewNode("Host1", []raft.Peer{{ID: 1}, {ID: 2}, {ID: 3}})
+	id := proton.GenID("Host1")
+	nodes[1] = proton.NewNode(id)
 	nodes[1].Raft.Campaign(nodes[1].Ctx)
 	go nodes[1].Start()
 
-	nodes[2] = proton.NewNode("Host2", []raft.Peer{{ID: 1}, {ID: 2}, {ID: 3}})
+	id = proton.GenID("Host2")
+	nodes[2] = proton.NewNode(id)
 	go nodes[2].Start()
 
-	nodes[3] = proton.NewNode("Host3", []raft.Peer{})
+	id = proton.GenID("Host3")
+	nodes[3] = proton.NewNode(id)
 	go nodes[3].Start()
 	nodes[2].Raft.ProposeConfChange(nodes[2].Ctx, raftpb.ConfChange{
 		ID:      3,

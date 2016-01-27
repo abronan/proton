@@ -35,10 +35,6 @@ func getClientConn(addr string, protocol string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-type transport struct {
-	cluster *Cluster
-}
-
 func Register(server *grpc.Server, node *Node) {
 	RegisterProtonServer(server, node)
 }

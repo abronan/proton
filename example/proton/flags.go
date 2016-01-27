@@ -3,7 +3,7 @@ package main
 import "github.com/codegangsta/cli"
 
 var (
-	flHostsValue = cli.StringSlice([]string{"tcp://127.0.0.1:6744"})
+	flHostsValue = cli.StringSlice([]string{"127.0.0.1:6744"})
 
 	flHosts = cli.StringSliceFlag{
 		Name:   "host, H",

@@ -50,18 +50,18 @@ const (
 
 const hb = 1
 
-func NewNode(hostname string, peers []raft.Peer) *Node {
+func NewNode(id uint64) *Node {
 	store := raft.NewMemoryStorage()
-	h := fnv.New64a()
-	h.Write([]byte(hostname))
-	id := h.Sum64()
+	peers := []raft.Peer{{ID: id}}
+
 	n := &Node{
-		ID:    id,
-		Ctx:   context.TODO(),
-		Store: store,
+		ID:      id,
+		Ctx:     context.TODO(),
+		Cluster: NewCluster(),
+		Store:   store,
 		Cfg: &raft.Config{
 			ID:              id,
-			ElectionTick:    10 * hb,
+			ElectionTick:    5 * hb,
 			HeartbeatTick:   hb,
 			Storage:         store,
 			MaxSizePerMsg:   math.MaxUint16,
@@ -74,6 +74,12 @@ func NewNode(hostname string, peers []raft.Peer) *Node {
 
 	n.Raft = raft.StartNode(n.Cfg, peers)
 	return n
+}
+
+func GenID(hostname string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(hostname))
+	return h.Sum64()
 }
 
 func (n *Node) Start() {
@@ -100,6 +106,23 @@ func (n *Node) Start() {
 			return
 		}
 	}
+}
+
+func (n *Node) Join(ctx context.Context, info *NodeInfo) (*JoinResponse, error) {
+	err := n.registerNode(info)
+	if err != nil {
+		// TODO send appropriate failure response
+		return &JoinResponse{}, nil
+	}
+
+	// TODO send success message to the remote caller
+	return &JoinResponse{}, nil
+}
+
+func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
+	n.Raft.Step(n.Ctx, *message)
+
+	return &Acknowledgment{}, nil
 }
 
 func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
@@ -138,25 +161,6 @@ func (n *Node) receive(ctx context.Context, message raftpb.Message) {
 	n.Raft.Step(ctx, message)
 }
 
-// Join a new machine in the cluster
-func (n *Node) Join(ctx context.Context, info *NodeInfo) (*JoinResponse, error) {
-	err := n.registerNode(info)
-	if err != nil {
-		// TODO send appropriate failure response
-		return &JoinResponse{}, nil
-	}
-
-	// TODO send success message to the remote caller
-	return &JoinResponse{}, nil
-}
-
-// Receive message from raft backend
-func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
-	n.Raft.Step(n.Ctx, *message)
-
-	return &Acknowledgment{}, nil
-}
-
 // Register the node on the raft cluster
 func (n *Node) registerNode(node *NodeInfo) error {
 	var (
@@ -173,12 +177,14 @@ func (n *Node) registerNode(node *NodeInfo) error {
 		}
 	}
 
-	err = n.Raft.ProposeConfChange(n.Ctx, raftpb.ConfChange{
+	confChange := raftpb.ConfChange{
 		ID:      node.ID,
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  node.ID,
 		Context: []byte(""),
-	})
+	}
+
+	err = n.Raft.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
 		return ErrConfChangeRefused
 	}
