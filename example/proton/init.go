@@ -1,8 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"net"
-	"os"
 	"time"
 
 	"google.golang.org/grpc"
@@ -24,14 +24,11 @@ func initcluster(c *cli.Context) {
 	}
 	s := grpc.NewServer()
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Fatalf("can't get hostname")
-	}
+	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
 
-	node := proton.NewNode(id)
+	node := proton.NewNode(id, hosts[0])
 	node.Raft.Campaign(node.Ctx)
 	go node.Start()
 
@@ -42,9 +39,14 @@ func initcluster(c *cli.Context) {
 
 	ticker := time.NewTicker(time.Second * 20)
 	go func() {
+		i := 0
 		for _ = range ticker.C {
-			node.Raft.Propose(node.Ctx, []byte("mykey1:myvalue1"))
-			// TODO print values
+			value := "mykey" + string(i) + ":myvalue" + string(i)
+			node.Raft.Propose(node.Ctx, []byte(value))
+			i++
+			for k, v := range node.PStore {
+				fmt.Printf("%v = %v\n", k, v)
+			}
 		}
 	}()
 

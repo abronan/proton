@@ -1,9 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
-	"os"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -23,14 +24,10 @@ func join(c *cli.Context) {
 	}
 
 	joinAddr := c.String("join")
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Fatalf("can't get hostname")
-	}
+	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
-	node := proton.NewNode(id)
+	node := proton.NewNode(id, hosts[0])
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {
@@ -48,21 +45,41 @@ func join(c *cli.Context) {
 
 	// Start raft
 	go node.Start()
+	go server.Serve(lis)
 
 	info := &proton.NodeInfo{
 		ID:   id,
 		Addr: hosts[0],
 	}
 
-	resp, err := p.Join(context.Background(), info)
+	resp, err := p.JoinCluster(context.Background(), info)
 	if err != nil {
 		log.Fatalf("could not join: %v", err)
 	}
-	log.Printf("Ack: %s", resp)
 
-	go server.Serve(lis)
+	for _, info := range resp.GetInfo() {
+		err := node.RegisterNode(info)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
-	// TODO loop and print values
+	_, err = p.JoinRaft(context.Background(), info)
+	if err != nil {
+		log.Fatalf("could not join: %v", err)
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ticker := time.NewTicker(time.Second * 20)
+	go func() {
+		for _ = range ticker.C {
+			for k, v := range node.PStore {
+				fmt.Printf("%v = %v\n", k, v)
+			}
+		}
+	}()
 
 	select {}
 }

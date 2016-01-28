@@ -25,12 +25,11 @@ type Node struct {
 	Cluster *Cluster
 	Ctx     context.Context
 
-	ID        uint64
-	PublicIP  string
-	PrivateIP string
-	Port      int
-	Status    Status
-	Error     error
+	ID     uint64
+	Addr   string
+	Port   int
+	Status Status
+	Error  error
 
 	PStore map[string]string
 	Store  *raft.MemoryStorage
@@ -50,7 +49,7 @@ const (
 
 const hb = 1
 
-func NewNode(id uint64) *Node {
+func NewNode(id uint64, addr string) *Node {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
@@ -59,6 +58,7 @@ func NewNode(id uint64) *Node {
 		Ctx:     context.TODO(),
 		Cluster: NewCluster(),
 		Store:   store,
+		Addr:    addr,
 		Cfg: &raft.Config{
 			ID:              id,
 			ElectionTick:    5 * hb,
@@ -71,6 +71,13 @@ func NewNode(id uint64) *Node {
 		ticker: time.Tick(time.Second),
 		done:   make(chan struct{}),
 	}
+
+	n.Cluster.AddNodes(
+		&Node{
+			ID:   id,
+			Addr: addr,
+		},
+	)
 
 	n.Raft = raft.StartNode(n.Cfg, peers)
 	return n
@@ -108,15 +115,50 @@ func (n *Node) Start() {
 	}
 }
 
-func (n *Node) Join(ctx context.Context, info *NodeInfo) (*JoinResponse, error) {
-	err := n.registerNode(info)
+func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterResponse, error) {
+	err := n.RegisterNode(info)
 	if err != nil {
-		// TODO send appropriate failure response
-		return &JoinResponse{}, nil
+		return &JoinClusterResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
 	}
 
-	// TODO send success message to the remote caller
-	return &JoinResponse{}, nil
+	nodes := []*NodeInfo{}
+	for _, node := range n.Cluster.Nodes {
+		nodes = append(nodes, &NodeInfo{
+			ID:   node.ID,
+			Addr: node.Addr,
+		})
+	}
+
+	return &JoinClusterResponse{
+		Success: true,
+		Error:   "",
+		Info:    nodes,
+	}, nil
+}
+
+func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse, error) {
+	confChange := raftpb.ConfChange{
+		ID:      info.ID,
+		Type:    raftpb.ConfChangeAddNode,
+		NodeID:  info.ID,
+		Context: []byte(""),
+	}
+
+	err := n.Raft.ProposeConfChange(n.Ctx, confChange)
+	if err != nil {
+		return &JoinRaftResponse{
+			Success: false,
+			Error:   ErrConfChangeRefused.Error(),
+		}, nil
+	}
+
+	return &JoinRaftResponse{
+		Success: true,
+		Error:   "",
+	}, nil
 }
 
 func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
@@ -138,10 +180,19 @@ func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 }
 
 func (n *Node) send(messages []raftpb.Message) {
+	for key, _ := range n.Cluster.Nodes {
+		fmt.Println("node value in cluster list: ", key)
+	}
+
 	for _, m := range messages {
+		// Process locally
+		if m.To == n.ID {
+			n.Raft.Step(n.Ctx, m)
+		}
+
 		log.Println(raft.DescribeMessage(m, nil))
 
-		n.Cluster.Nodes[m.To].Send(n.Ctx, &m)
+		n.Cluster.Nodes[m.To].Client.Send(n.Ctx, &m)
 	}
 }
 
@@ -161,8 +212,8 @@ func (n *Node) receive(ctx context.Context, message raftpb.Message) {
 	n.Raft.Step(ctx, message)
 }
 
-// Register the node on the raft cluster
-func (n *Node) registerNode(node *NodeInfo) error {
+// Register a new node on the cluster
+func (n *Node) RegisterNode(node *NodeInfo) error {
 	var (
 		client ProtonClient
 		err    error
@@ -177,20 +228,10 @@ func (n *Node) registerNode(node *NodeInfo) error {
 		}
 	}
 
-	confChange := raftpb.ConfChange{
-		ID:      node.ID,
-		Type:    raftpb.ConfChangeAddNode,
-		NodeID:  node.ID,
-		Context: []byte(""),
-	}
-
-	err = n.Raft.ProposeConfChange(n.Ctx, confChange)
-	if err != nil {
-		return ErrConfChangeRefused
-	}
-
 	n.Cluster.AddNodes(
 		&Node{
+			ID:     node.ID,
+			Addr:   node.Addr,
 			Client: client,
 			Error:  err,
 		},

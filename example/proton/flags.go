@@ -29,4 +29,10 @@ var (
 		Usage:  "ip/socket to join",
 		EnvVar: "PROTON_JOIN",
 	}
+
+	flHostname = cli.StringFlag{
+		Name:   "hostname",
+		Usage:  "hostname of the raft node",
+		EnvVar: "PROTON_HOSTNAME",
+	}
 )

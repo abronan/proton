@@ -5,21 +5,26 @@ import "github.com/coreos/etcd/raft/raftpb/raft.proto";
 import weak "gogoproto/gogo.proto";
 
 service Proton {
-
-  rpc Join(NodeInfo) returns (JoinResponse) {}
-
+  rpc JoinCluster(NodeInfo) returns (JoinClusterResponse) {}
+  rpc JoinRaft(NodeInfo) returns (JoinRaftResponse) {}
   rpc Send(raftpb.Message) returns (Acknowledgment) {}
-
 }
 
 message Acknowledgment {}
 
-message JoinResponse {
-  repeated NodeInfo info = 1;
+message JoinClusterResponse {
+  bool success = 1;
+  string error = 2;
+  repeated NodeInfo info = 3;
+}
+
+message JoinRaftResponse {
+  bool success = 1;
+  string error = 2;
 }
 
 message NodeInfo {
   uint64 ID = 1;
   string Addr = 2;
-  string Port = 4;
+  string Port = 3;
 }

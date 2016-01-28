@@ -14,16 +14,16 @@ var (
 
 func main() {
 	id := proton.GenID("Host1")
-	nodes[1] = proton.NewNode(id)
+	nodes[1] = proton.NewNode(id, "")
 	nodes[1].Raft.Campaign(nodes[1].Ctx)
 	go nodes[1].Start()
 
 	id = proton.GenID("Host2")
-	nodes[2] = proton.NewNode(id)
+	nodes[2] = proton.NewNode(id, "")
 	go nodes[2].Start()
 
 	id = proton.GenID("Host3")
-	nodes[3] = proton.NewNode(id)
+	nodes[3] = proton.NewNode(id, "")
 	go nodes[3].Start()
 	nodes[2].Raft.ProposeConfChange(nodes[2].Ctx, raftpb.ConfChange{
 		ID:      3,
