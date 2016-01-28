@@ -208,10 +208,6 @@ func (n *Node) process(entry raftpb.Entry) {
 	}
 }
 
-func (n *Node) receive(ctx context.Context, message raftpb.Message) {
-	n.Raft.Step(ctx, message)
-}
-
 // Register a new node on the cluster
 func (n *Node) RegisterNode(node *NodeInfo) error {
 	var (
