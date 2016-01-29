@@ -1,9 +1,11 @@
 package proton
 
 import (
+	"errors"
 	"net"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 )
 
@@ -33,6 +35,19 @@ func getClientConn(addr string, protocol string) (*grpc.ClientConn, error) {
 	}
 
 	return conn, nil
+}
+
+func EncodePair(key string, value []byte) ([]byte, error) {
+	k := proto.String(key)
+	pair := &Pair{
+		Key:   *k,
+		Value: value,
+	}
+	data, err := proto.Marshal(pair)
+	if err != nil {
+		return nil, errors.New("Can't encode key/value using protobuf")
+	}
+	return data, nil
 }
 
 func Register(server *grpc.Server, node *Node) {

@@ -28,3 +28,8 @@ message NodeInfo {
   string Addr = 2;
   string Port = 3;
 }
+
+message Pair {
+  string key = 1;
+  bytes value = 2;
+}

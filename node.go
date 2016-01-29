@@ -1,7 +1,6 @@
 package proton
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/gogo/protobuf/proto"
 )
 
 var (
@@ -203,8 +203,13 @@ func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
 func (n *Node) process(entry raftpb.Entry) {
 	log.Printf("node %v: processing entry: %v\n", n.ID, entry)
 	if entry.Type == raftpb.EntryNormal && entry.Data != nil {
-		parts := bytes.SplitN(entry.Data, []byte(":"), 2)
-		n.PStore[string(parts[0])] = string(parts[1])
+		pair := &Pair{}
+		err := proto.Unmarshal(entry.Data, pair)
+		if err != nil {
+			log.Fatal("Can't decode key and value sent through raft")
+		}
+
+		n.PStore[pair.Key] = string(pair.Value)
 	}
 }
 
@@ -223,6 +228,8 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 			}
 		}
 	}
+
+	// TODO monitor connection
 
 	n.Cluster.AddNodes(
 		&Node{
