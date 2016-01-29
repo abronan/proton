@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -37,12 +38,17 @@ func initcluster(c *cli.Context) {
 
 	go s.Serve(lis)
 
-	ticker := time.NewTicker(time.Second * 20)
+	ticker := time.NewTicker(time.Second * 10)
 	go func() {
 		i := 0
 		for _ = range ticker.C {
-			value := "mykey" + string(i) + ":myvalue" + string(i)
-			node.Raft.Propose(node.Ctx, []byte(value))
+			s := strconv.Itoa(i)
+			pair, err := proton.EncodePair("key"+s, []byte("myvalue"+s))
+			if err != nil {
+				log.Fatal("Can't encode KV pair")
+			}
+
+			node.Raft.Propose(node.Ctx, pair)
 			i++
 			for k, v := range node.PStore {
 				fmt.Printf("%v = %v\n", k, v)
