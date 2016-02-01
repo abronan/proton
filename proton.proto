@@ -7,6 +7,7 @@ import weak "gogoproto/gogo.proto";
 service Proton {
   rpc JoinCluster(NodeInfo) returns (JoinClusterResponse) {}
   rpc JoinRaft(NodeInfo) returns (JoinRaftResponse) {}
+  rpc LeaveRaft(NodeInfo) returns (LeaveRaftResponse) {}
   rpc Send(raftpb.Message) returns (Acknowledgment) {}
 }
 
@@ -19,6 +20,11 @@ message JoinClusterResponse {
 }
 
 message JoinRaftResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message LeaveRaftResponse {
   bool success = 1;
   string error = 2;
 }

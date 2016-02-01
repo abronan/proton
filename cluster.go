@@ -21,7 +21,7 @@ func (t *Cluster) AddNodes(node *Node) {
 	t.Unlock()
 }
 
-// Add a node to our neighbors
+//Remove a node from our neighbors
 func (t *Cluster) RemoveNode(id uint64) {
 	t.Lock()
 	delete(t.Nodes, id)

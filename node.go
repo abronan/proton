@@ -161,6 +161,32 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 	}, nil
 }
 
+func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftResponse, error) {
+	confChange := raftpb.ConfChange{
+		ID:      info.ID,
+		Type:    raftpb.ConfChangeRemoveNode,
+		NodeID:  info.ID,
+		Context: []byte(""),
+	}
+
+	err := n.Raft.ProposeConfChange(n.Ctx, confChange)
+	if err != nil {
+		return &LeaveRaftResponse{
+			Success: false,
+			Error:   ErrConfChangeRefused.Error(),
+		}, nil
+	}
+
+	// FIXME keep node in cluster list even
+	// though it's not a raft member anymore
+	n.Cluster.RemoveNode(info.ID)
+
+	return &LeaveRaftResponse{
+		Success: true,
+		Error:   "",
+	}, nil
+}
+
 func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
 	n.Raft.Step(n.Ctx, *message)
 
@@ -190,9 +216,11 @@ func (n *Node) send(messages []raftpb.Message) {
 			n.Raft.Step(n.Ctx, m)
 		}
 
-		log.Println(raft.DescribeMessage(m, nil))
-
-		n.Cluster.Nodes[m.To].Client.Send(n.Ctx, &m)
+		// If node is an active raft member send the message
+		if node, ok := n.Cluster.Nodes[m.To]; ok {
+			log.Println(raft.DescribeMessage(m, nil))
+			node.Client.Send(n.Ctx, &m)
+		}
 	}
 }
 

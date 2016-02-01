@@ -12,6 +12,7 @@
 		Acknowledgment
 		JoinClusterResponse
 		JoinRaftResponse
+		LeaveRaftResponse
 		NodeInfo
 		Pair
 */
@@ -69,6 +70,15 @@ func (m *JoinRaftResponse) Reset()         { *m = JoinRaftResponse{} }
 func (m *JoinRaftResponse) String() string { return proto.CompactTextString(m) }
 func (*JoinRaftResponse) ProtoMessage()    {}
 
+type LeaveRaftResponse struct {
+	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+}
+
+func (m *LeaveRaftResponse) Reset()         { *m = LeaveRaftResponse{} }
+func (m *LeaveRaftResponse) String() string { return proto.CompactTextString(m) }
+func (*LeaveRaftResponse) ProtoMessage()    {}
+
 type NodeInfo struct {
 	ID   uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Addr string `protobuf:"bytes,2,opt,name=Addr,proto3" json:"Addr,omitempty"`
@@ -92,6 +102,7 @@ func init() {
 	proto.RegisterType((*Acknowledgment)(nil), "proton.Acknowledgment")
 	proto.RegisterType((*JoinClusterResponse)(nil), "proton.JoinClusterResponse")
 	proto.RegisterType((*JoinRaftResponse)(nil), "proton.JoinRaftResponse")
+	proto.RegisterType((*LeaveRaftResponse)(nil), "proton.LeaveRaftResponse")
 	proto.RegisterType((*NodeInfo)(nil), "proton.NodeInfo")
 	proto.RegisterType((*Pair)(nil), "proton.Pair")
 }
@@ -105,6 +116,7 @@ var _ grpc.ClientConn
 type ProtonClient interface {
 	JoinCluster(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinClusterResponse, error)
 	JoinRaft(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinRaftResponse, error)
+	LeaveRaft(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*LeaveRaftResponse, error)
 	Send(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Acknowledgment, error)
 }
 
@@ -134,6 +146,15 @@ func (c *protonClient) JoinRaft(ctx context.Context, in *NodeInfo, opts ...grpc.
 	return out, nil
 }
 
+func (c *protonClient) LeaveRaft(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*LeaveRaftResponse, error) {
+	out := new(LeaveRaftResponse)
+	err := grpc.Invoke(ctx, "/proton.Proton/LeaveRaft", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *protonClient) Send(ctx context.Context, in *raftpb.Message, opts ...grpc.CallOption) (*Acknowledgment, error) {
 	out := new(Acknowledgment)
 	err := grpc.Invoke(ctx, "/proton.Proton/Send", in, out, c.cc, opts...)
@@ -148,6 +169,7 @@ func (c *protonClient) Send(ctx context.Context, in *raftpb.Message, opts ...grp
 type ProtonServer interface {
 	JoinCluster(context.Context, *NodeInfo) (*JoinClusterResponse, error)
 	JoinRaft(context.Context, *NodeInfo) (*JoinRaftResponse, error)
+	LeaveRaft(context.Context, *NodeInfo) (*LeaveRaftResponse, error)
 	Send(context.Context, *raftpb.Message) (*Acknowledgment, error)
 }
 
@@ -179,6 +201,18 @@ func _Proton_JoinRaft_Handler(srv interface{}, ctx context.Context, dec func(int
 	return out, nil
 }
 
+func _Proton_LeaveRaft_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(NodeInfo)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ProtonServer).LeaveRaft(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func _Proton_Send_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(raftpb.Message)
 	if err := dec(in); err != nil {
@@ -202,6 +236,10 @@ var _Proton_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "JoinRaft",
 			Handler:    _Proton_JoinRaft_Handler,
+		},
+		{
+			MethodName: "LeaveRaft",
+			Handler:    _Proton_LeaveRaft_Handler,
 		},
 		{
 			MethodName: "Send",
@@ -286,6 +324,40 @@ func (m *JoinRaftResponse) Marshal() (data []byte, err error) {
 }
 
 func (m *JoinRaftResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Success {
+		data[i] = 0x8
+		i++
+		if m.Success {
+			data[i] = 1
+		} else {
+			data[i] = 0
+		}
+		i++
+	}
+	if len(m.Error) > 0 {
+		data[i] = 0x12
+		i++
+		i = encodeVarintProton(data, i, uint64(len(m.Error)))
+		i += copy(data[i:], m.Error)
+	}
+	return i, nil
+}
+
+func (m *LeaveRaftResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *LeaveRaftResponse) MarshalTo(data []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -429,6 +501,19 @@ func (m *JoinClusterResponse) Size() (n int) {
 }
 
 func (m *JoinRaftResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Success {
+		n += 2
+	}
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovProton(uint64(l))
+	}
+	return n
+}
+
+func (m *LeaveRaftResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Success {
@@ -694,6 +779,105 @@ func (m *JoinRaftResponse) Unmarshal(data []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: JoinRaftResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				v |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Success = bool(v != 0)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(data[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaveRaftResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaveRaftResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaveRaftResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
