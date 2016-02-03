@@ -21,7 +21,7 @@ var (
 )
 
 type Node struct {
-	Client  ProtonClient
+	Client  *Proton
 	Cluster *Cluster
 	Ctx     context.Context
 
@@ -117,6 +117,10 @@ func (n *Node) Start() {
 	}
 }
 
+func (n *Node) Ping(ctx context.Context, ping *PingRequest) (*Acknowledgment, error) {
+	return &Acknowledgment{}, nil
+}
+
 func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterResponse, error) {
 	nodes := []*NodeInfo{}
 
@@ -131,7 +135,7 @@ func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterRes
 		}
 
 		// Register node on other machines that are part of the cluster
-		resp, err := node.Client.AddNode(ctx, info)
+		resp, err := node.Client.Client.AddNode(ctx, info)
 		if err != nil || !resp.Success {
 			return &JoinClusterResponse{
 				Success: false,
@@ -233,10 +237,6 @@ func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 }
 
 func (n *Node) send(messages []raftpb.Message) {
-	for key, _ := range n.Cluster.Nodes {
-		fmt.Println("node value in cluster list: ", key)
-	}
-
 	for _, m := range messages {
 		// Process locally
 		if m.To == n.ID {
@@ -247,7 +247,12 @@ func (n *Node) send(messages []raftpb.Message) {
 		// If node is an active raft member send the message
 		if node, ok := n.Cluster.Nodes[m.To]; ok {
 			log.Println(raft.DescribeMessage(m, nil))
-			node.Client.Send(n.Ctx, &m)
+			_, err := node.Client.Client.Send(n.Ctx, &m)
+			if err != nil {
+				node.Client.Conn.Close()
+				n.Raft.ReportUnreachable(node.ID)
+				n.Cluster.RemoveNode(node.ID)
+			}
 		}
 	}
 }
@@ -276,12 +281,12 @@ func (n *Node) process(entry raftpb.Entry) {
 // Register a new node on the cluster
 func (n *Node) RegisterNode(node *NodeInfo) error {
 	var (
-		client ProtonClient
+		client *Proton
 		err    error
 	)
 
 	for i := 1; i <= MaxRetryTime; i++ {
-		client, err = GetProtonClient(node.Addr)
+		client, err = GetProtonClient(node.Addr, 2*time.Second)
 		if err != nil {
 			if i == MaxRetryTime {
 				return ErrConnectionRefused
@@ -289,7 +294,19 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 		}
 	}
 
-	// TODO monitor connection
+	// Monitor connection
+	go func() {
+		ticker := time.NewTicker(time.Second * 10)
+		for _ = range ticker.C {
+			_, err := client.Client.Ping(context.Background(), &PingRequest{})
+			if err != nil {
+				client.Conn.Close()
+				n.Raft.ReportUnreachable(node.ID)
+				n.Cluster.RemoveNode(node.ID)
+				return
+			}
+		}
+	}()
 
 	n.Cluster.AddNodes(
 		&Node{

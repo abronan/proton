@@ -9,6 +9,7 @@
 		proton.proto
 
 	It has these top-level messages:
+		PingRequest
 		Acknowledgment
 		JoinClusterResponse
 		AddNodeResponse
@@ -37,6 +38,13 @@ import io "io"
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+
+type PingRequest struct {
+}
+
+func (m *PingRequest) Reset()         { *m = PingRequest{} }
+func (m *PingRequest) String() string { return proto.CompactTextString(m) }
+func (*PingRequest) ProtoMessage()    {}
 
 type Acknowledgment struct {
 }
@@ -109,6 +117,7 @@ func (m *Pair) String() string { return proto.CompactTextString(m) }
 func (*Pair) ProtoMessage()    {}
 
 func init() {
+	proto.RegisterType((*PingRequest)(nil), "proton.PingRequest")
 	proto.RegisterType((*Acknowledgment)(nil), "proton.Acknowledgment")
 	proto.RegisterType((*JoinClusterResponse)(nil), "proton.JoinClusterResponse")
 	proto.RegisterType((*AddNodeResponse)(nil), "proton.AddNodeResponse")
@@ -125,6 +134,7 @@ var _ grpc.ClientConn
 // Client API for Proton service
 
 type ProtonClient interface {
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*Acknowledgment, error)
 	JoinCluster(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinClusterResponse, error)
 	JoinRaft(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinRaftResponse, error)
 	LeaveRaft(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*LeaveRaftResponse, error)
@@ -138,6 +148,15 @@ type protonClient struct {
 
 func NewProtonClient(cc *grpc.ClientConn) ProtonClient {
 	return &protonClient{cc}
+}
+
+func (c *protonClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*Acknowledgment, error) {
+	out := new(Acknowledgment)
+	err := grpc.Invoke(ctx, "/proton.Proton/Ping", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *protonClient) JoinCluster(ctx context.Context, in *NodeInfo, opts ...grpc.CallOption) (*JoinClusterResponse, error) {
@@ -188,6 +207,7 @@ func (c *protonClient) AddNode(ctx context.Context, in *NodeInfo, opts ...grpc.C
 // Server API for Proton service
 
 type ProtonServer interface {
+	Ping(context.Context, *PingRequest) (*Acknowledgment, error)
 	JoinCluster(context.Context, *NodeInfo) (*JoinClusterResponse, error)
 	JoinRaft(context.Context, *NodeInfo) (*JoinRaftResponse, error)
 	LeaveRaft(context.Context, *NodeInfo) (*LeaveRaftResponse, error)
@@ -197,6 +217,18 @@ type ProtonServer interface {
 
 func RegisterProtonServer(s *grpc.Server, srv ProtonServer) {
 	s.RegisterService(&_Proton_serviceDesc, srv)
+}
+
+func _Proton_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(ProtonServer).Ping(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func _Proton_JoinCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
@@ -264,6 +296,10 @@ var _Proton_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ProtonServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Ping",
+			Handler:    _Proton_Ping_Handler,
+		},
+		{
 			MethodName: "JoinCluster",
 			Handler:    _Proton_JoinCluster_Handler,
 		},
@@ -285,6 +321,24 @@ var _Proton_serviceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{},
+}
+
+func (m *PingRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *PingRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
 }
 
 func (m *Acknowledgment) Marshal() (data []byte, err error) {
@@ -547,6 +601,12 @@ func encodeVarintProton(data []byte, offset int, v uint64) int {
 	data[offset] = uint8(v)
 	return offset + 1
 }
+func (m *PingRequest) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
 func (m *Acknowledgment) Size() (n int) {
 	var l int
 	_ = l
@@ -656,6 +716,56 @@ func sovProton(x uint64) (n int) {
 }
 func sozProton(x uint64) (n int) {
 	return sovProton(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *PingRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PingRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PingRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *Acknowledgment) Unmarshal(data []byte) error {
 	l := len(data)

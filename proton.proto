@@ -5,12 +5,15 @@ import "github.com/coreos/etcd/raft/raftpb/raft.proto";
 import weak "gogoproto/gogo.proto";
 
 service Proton {
+  rpc Ping(PingRequest) returns (Acknowledgment) {}
   rpc JoinCluster(NodeInfo) returns (JoinClusterResponse) {}
   rpc JoinRaft(NodeInfo) returns (JoinRaftResponse) {}
   rpc LeaveRaft(NodeInfo) returns (LeaveRaftResponse) {}
   rpc Send(raftpb.Message) returns (Acknowledgment) {}
   rpc AddNode(NodeInfo) returns (AddNodeResponse) {}
 }
+
+message PingRequest {}
 
 message Acknowledgment {}
 

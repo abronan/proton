@@ -2,7 +2,6 @@ package proton
 
 import (
 	"errors"
-	"net"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -13,23 +12,25 @@ const (
 	MaxRetryTime = 3
 )
 
-func GetProtonClient(addr string) (ProtonClient, error) {
-	conn, err := getClientConn(addr, "tcp")
+type Proton struct {
+	Client ProtonClient
+	Conn   *grpc.ClientConn
+}
+
+func GetProtonClient(addr string, timeout time.Duration) (*Proton, error) {
+	conn, err := getClientConn(addr, "tcp", timeout)
 	if err != nil {
 		return nil, err
 	}
-	return NewProtonClient(conn), nil
+
+	return &Proton{
+		Client: NewProtonClient(conn),
+		Conn:   conn,
+	}, nil
 }
 
-func getClientConn(addr string, protocol string) (*grpc.ClientConn, error) {
-	dialOpts := []grpc.DialOption{grpc.WithInsecure()}
-	dialOpts = append(dialOpts,
-		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout(protocol, addr, timeout)
-		},
-		))
-
-	conn, err := grpc.Dial(addr, dialOpts...)
+func getClientConn(addr string, protocol string, timeout time.Duration) (*grpc.ClientConn, error) {
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithTimeout(timeout))
 	if err != nil {
 		return nil, err
 	}

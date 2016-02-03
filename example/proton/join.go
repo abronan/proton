@@ -36,12 +36,10 @@ func join(c *cli.Context) {
 	server := grpc.NewServer()
 	proton.Register(server, node)
 
-	conn, err := grpc.Dial(joinAddr, grpc.WithInsecure())
+	client, err := proton.GetProtonClient(joinAddr, 2*time.Second)
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		log.Fatal("couldn't initialize client connection")
 	}
-	defer conn.Close()
-	p := proton.NewProtonClient(conn)
 
 	// Start raft
 	go node.Start()
@@ -52,7 +50,7 @@ func join(c *cli.Context) {
 		Addr: hosts[0],
 	}
 
-	resp, err := p.JoinCluster(context.Background(), info)
+	resp, err := client.Client.JoinCluster(context.Background(), info)
 	if err != nil {
 		log.Fatalf("could not join: %v", err)
 	}
@@ -64,7 +62,7 @@ func join(c *cli.Context) {
 		}
 	}
 
-	_, err = p.JoinRaft(context.Background(), info)
+	_, err = client.Client.JoinRaft(context.Background(), info)
 	if err != nil {
 		log.Fatal(err)
 	}
