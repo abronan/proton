@@ -9,6 +9,7 @@ service Proton {
   rpc JoinRaft(NodeInfo) returns (JoinRaftResponse) {}
   rpc LeaveRaft(NodeInfo) returns (LeaveRaftResponse) {}
   rpc Send(raftpb.Message) returns (Acknowledgment) {}
+  rpc AddNode(NodeInfo) returns (AddNodeResponse) {}
 }
 
 message Acknowledgment {}
@@ -17,6 +18,11 @@ message JoinClusterResponse {
   bool success = 1;
   string error = 2;
   repeated NodeInfo info = 3;
+}
+
+message AddNodeResponse {
+  bool success = 1;
+  string error = 2;
 }
 
 message JoinRaftResponse {

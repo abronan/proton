@@ -118,6 +118,28 @@ func (n *Node) Start() {
 }
 
 func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterResponse, error) {
+	nodes := []*NodeInfo{}
+
+	for _, node := range n.Cluster.Nodes {
+		nodes = append(nodes, &NodeInfo{
+			ID:   node.ID,
+			Addr: node.Addr,
+		})
+
+		if node.ID == n.ID {
+			continue
+		}
+
+		// Register node on other machines that are part of the cluster
+		resp, err := node.Client.AddNode(ctx, info)
+		if err != nil || !resp.Success {
+			return &JoinClusterResponse{
+				Success: false,
+				Error:   resp.Error,
+			}, nil
+		}
+	}
+
 	err := n.RegisterNode(info)
 	if err != nil {
 		return &JoinClusterResponse{
@@ -126,18 +148,25 @@ func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterRes
 		}, nil
 	}
 
-	nodes := []*NodeInfo{}
-	for _, node := range n.Cluster.Nodes {
-		nodes = append(nodes, &NodeInfo{
-			ID:   node.ID,
-			Addr: node.Addr,
-		})
-	}
-
 	return &JoinClusterResponse{
 		Success: true,
 		Error:   "",
 		Info:    nodes,
+	}, nil
+}
+
+func (n *Node) AddNode(ctx context.Context, info *NodeInfo) (*AddNodeResponse, error) {
+	err := n.RegisterNode(info)
+	if err != nil {
+		return &AddNodeResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &AddNodeResponse{
+		Success: true,
+		Error:   "",
 	}, nil
 }
 
