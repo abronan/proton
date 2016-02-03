@@ -37,6 +37,7 @@ type Node struct {
 	Raft   raft.Node
 	ticker <-chan time.Time
 	done   <-chan struct{}
+	event  chan<- struct{}
 }
 
 type Status int
@@ -49,7 +50,7 @@ const (
 
 const hb = 1
 
-func NewNode(id uint64, addr string) *Node {
+func NewNode(id uint64, addr string, appendEvent chan<- struct{}) *Node {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
@@ -70,6 +71,7 @@ func NewNode(id uint64, addr string) *Node {
 		PStore: make(map[string]string),
 		ticker: time.Tick(time.Second),
 		done:   make(chan struct{}),
+		event:  appendEvent,
 	}
 
 	n.Cluster.AddNodes(
@@ -177,10 +179,6 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 		}, nil
 	}
 
-	// FIXME keep node in cluster list even
-	// though it's not a raft member anymore
-	n.Cluster.RemoveNode(info.ID)
-
 	return &LeaveRaftResponse{
 		Success: true,
 		Error:   "",
@@ -214,6 +212,7 @@ func (n *Node) send(messages []raftpb.Message) {
 		// Process locally
 		if m.To == n.ID {
 			n.Raft.Step(n.Ctx, m)
+			continue
 		}
 
 		// If node is an active raft member send the message
@@ -230,6 +229,7 @@ func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
 
 func (n *Node) process(entry raftpb.Entry) {
 	log.Printf("node %v: processing entry: %v\n", n.ID, entry)
+
 	if entry.Type == raftpb.EntryNormal && entry.Data != nil {
 		pair := &Pair{}
 		err := proto.Unmarshal(entry.Data, pair)
@@ -237,6 +237,9 @@ func (n *Node) process(entry raftpb.Entry) {
 			log.Fatal("Can't decode key and value sent through raft")
 		}
 
+		if n.event != nil {
+			n.event <- struct{}{}
+		}
 		n.PStore[pair.Key] = string(pair.Value)
 	}
 }

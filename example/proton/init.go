@@ -29,7 +29,7 @@ func initcluster(c *cli.Context) {
 
 	id := proton.GenID(hostname)
 
-	node := proton.NewNode(id, hosts[0])
+	node := proton.NewNode(id, hosts[0], nil)
 	node.Raft.Campaign(node.Ctx)
 	go node.Start()
 

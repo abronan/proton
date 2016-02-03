@@ -27,7 +27,7 @@ func join(c *cli.Context) {
 	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
-	node := proton.NewNode(id, hosts[0])
+	node := proton.NewNode(id, hosts[0], nil)
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {
@@ -65,9 +65,6 @@ func join(c *cli.Context) {
 	}
 
 	_, err = p.JoinRaft(context.Background(), info)
-	if err != nil {
-		log.Fatalf("could not join: %v", err)
-	}
 	if err != nil {
 		log.Fatal(err)
 	}
