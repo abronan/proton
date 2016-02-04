@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"time"
@@ -27,7 +26,7 @@ func join(c *cli.Context) {
 	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
-	node := proton.NewNode(id, hosts[0], nil)
+	node := proton.NewNode(id, hosts[0], nil, handler)
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {
@@ -66,15 +65,6 @@ func join(c *cli.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	ticker := time.NewTicker(time.Second * 20)
-	go func() {
-		for _ = range ticker.C {
-			for k, v := range node.PStore {
-				fmt.Printf("%v = %v\n", k, v)
-			}
-		}
-	}()
 
 	select {}
 }

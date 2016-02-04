@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -29,7 +28,7 @@ func initcluster(c *cli.Context) {
 
 	id := proton.GenID(hostname)
 
-	node := proton.NewNode(id, hosts[0], nil)
+	node := proton.NewNode(id, hosts[0], nil, handler)
 	node.Raft.Campaign(node.Ctx)
 	go node.Start()
 
@@ -50,9 +49,6 @@ func initcluster(c *cli.Context) {
 
 			node.Raft.Propose(node.Ctx, pair)
 			i++
-			for k, v := range node.PStore {
-				fmt.Printf("%v = %v\n", k, v)
-			}
 		}
 	}()
 

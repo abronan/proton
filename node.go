@@ -20,6 +20,12 @@ var (
 	ErrConfChangeRefused = errors.New("Can't add node to the cluster")
 )
 
+// Handler function can be used and triggered
+// everytime there is an append entry event
+type Handler func(interface{})
+
+// Type Node represents the Raft Node useful
+// configuration.
 type Node struct {
 	Client  *Proton
 	Cluster *Cluster
@@ -37,9 +43,20 @@ type Node struct {
 	Raft   raft.Node
 	ticker <-chan time.Time
 	done   <-chan struct{}
-	event  chan<- struct{}
+
+	// Event is a receive only channel that
+	// receives an event when an entry is
+	// committed to the logs
+	event chan<- struct{}
+
+	// Handler is called when a log entry
+	// is committed to the logs, behind can
+	// lie anykind of logic processing the
+	// message
+	handler Handler
 }
 
+// Status represents the status of the node
 type Status int
 
 const (
@@ -48,9 +65,14 @@ const (
 	PENDING
 )
 
+// Hearbeat regular interval
 const hb = 1
 
-func NewNode(id uint64, addr string, appendEvent chan<- struct{}) *Node {
+// NewNode generates a new Raft node based on an unique
+// ID, an address and optionally: a handler and receive
+// only channel to send event when en entry is committed
+// to the logs
+func NewNode(id uint64, addr string, appendEvent chan<- struct{}, handler Handler) *Node {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
@@ -68,10 +90,11 @@ func NewNode(id uint64, addr string, appendEvent chan<- struct{}) *Node {
 			MaxSizePerMsg:   math.MaxUint16,
 			MaxInflightMsgs: 256,
 		},
-		PStore: make(map[string]string),
-		ticker: time.Tick(time.Second),
-		done:   make(chan struct{}),
-		event:  appendEvent,
+		PStore:  make(map[string]string),
+		ticker:  time.Tick(time.Second),
+		done:    make(chan struct{}),
+		event:   appendEvent,
+		handler: handler,
 	}
 
 	n.Cluster.AddNodes(
@@ -91,6 +114,10 @@ func GenID(hostname string) uint64 {
 	return h.Sum64()
 }
 
+// Start is the main loop for a Raft node, it
+// goes along the state machine, acting on the
+// messages received from other Raft nodes in
+// the cluster
 func (n *Node) Start() {
 	for {
 		select {
@@ -271,9 +298,17 @@ func (n *Node) process(entry raftpb.Entry) {
 			log.Fatal("Can't decode key and value sent through raft")
 		}
 
+		// Send back an event if a channel is defined
 		if n.event != nil {
 			n.event <- struct{}{}
 		}
+
+		// Process a new committed entry if an handler
+		// method was defined and provided
+		if n.handler != nil {
+			n.handler(entry.Data)
+		}
+
 		n.PStore[pair.Key] = string(pair.Value)
 	}
 }
