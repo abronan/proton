@@ -354,3 +354,10 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 
 	return nil
 }
+
+func (n *Node) Leader() bool {
+	if n.Raft.Status().Lead == n.ID {
+		return true
+	}
+	return false
+}

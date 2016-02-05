@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"time"
@@ -45,6 +46,10 @@ func initcluster(c *cli.Context) {
 			pair, err := proton.EncodePair("key"+s, []byte("myvalue"+s))
 			if err != nil {
 				log.Fatal("Can't encode KV pair")
+			}
+
+			if node.Leader() {
+				fmt.Println("---> Leading the raft")
 			}
 
 			node.Raft.Propose(node.Ctx, pair)
