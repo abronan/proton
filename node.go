@@ -43,6 +43,7 @@ type Node struct {
 	Raft   raft.Node
 	ticker <-chan time.Time
 	done   <-chan struct{}
+	debug  bool
 
 	// Event is a receive only channel that
 	// receives an event when an entry is
@@ -72,7 +73,7 @@ const hb = 1
 // ID, an address and optionally: a handler and receive
 // only channel to send event when en entry is committed
 // to the logs
-func NewNode(id uint64, addr string, appendEvent chan<- struct{}, handler Handler) *Node {
+func NewNode(id uint64, addr string, debug bool, appendEvent chan<- struct{}, handler Handler) *Node {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
@@ -95,6 +96,7 @@ func NewNode(id uint64, addr string, appendEvent chan<- struct{}, handler Handle
 		done:    make(chan struct{}),
 		event:   appendEvent,
 		handler: handler,
+		debug:   debug,
 	}
 
 	n.Cluster.AddNodes(
@@ -273,7 +275,9 @@ func (n *Node) send(messages []raftpb.Message) {
 
 		// If node is an active raft member send the message
 		if node, ok := n.Cluster.Nodes[m.To]; ok {
-			log.Println(raft.DescribeMessage(m, nil))
+			if n.debug {
+				log.Println(raft.DescribeMessage(m, nil))
+			}
 			_, err := node.Client.Client.Send(n.Ctx, &m)
 			if err != nil {
 				node.Client.Conn.Close()
@@ -289,7 +293,9 @@ func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
 }
 
 func (n *Node) process(entry raftpb.Entry) {
-	log.Printf("node %v: processing entry: %v\n", n.ID, entry)
+	if n.debug {
+		log.Printf("node %v: processing entry: %v\n", n.ID, entry)
+	}
 
 	if entry.Type == raftpb.EntryNormal && entry.Data != nil {
 		pair := &Pair{}

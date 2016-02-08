@@ -26,7 +26,7 @@ func join(c *cli.Context) {
 	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
-	node := proton.NewNode(id, hosts[0], nil, handler)
+	node := proton.NewNode(id, hosts[0], c.Bool("withRaftLogs"), nil, handler)
 
 	lis, err := net.Listen("tcp", hosts[0])
 	if err != nil {

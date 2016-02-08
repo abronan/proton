@@ -18,6 +18,12 @@ var (
 		EnvVar: "PROTON_FIRST",
 	}
 
+	flWithRaftLogs = cli.BoolFlag{
+		Name:   "withRaftLogs",
+		Usage:  "print raft logs for heartbeats and log processing",
+		EnvVar: "PROTON_WITH_RAFT_LOGS",
+	}
+
 	flReplication = cli.BoolFlag{
 		Name:   "replication, R",
 		Usage:  "take part in log replication; implied by --replication=true",
