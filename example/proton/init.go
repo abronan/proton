@@ -48,7 +48,7 @@ func initcluster(c *cli.Context) {
 				log.Fatal("Can't encode KV pair")
 			}
 
-			if node.Leader() {
+			if node.IsLeader() {
 				fmt.Println("---> Leading the raft")
 			}
 

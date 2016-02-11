@@ -146,10 +146,16 @@ func (n *Node) Start() {
 	}
 }
 
+// Ping is used to ping nodes regularily to clean up
+// the connection if something went wrong on the comm
+// layer side
 func (n *Node) Ping(ctx context.Context, ping *PingRequest) (*Acknowledgment, error) {
 	return &Acknowledgment{}, nil
 }
 
+// JoinCluster adds a new member to the cluster, it is
+// called from the new member who is willing to join an
+// existing cluster
 func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterResponse, error) {
 	nodes := []*NodeInfo{}
 
@@ -188,6 +194,9 @@ func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterRes
 	}, nil
 }
 
+// AddNode registers a new node in the cluster, it is
+// used from other nodes to spread the information of
+// a new member added to the cluster
 func (n *Node) AddNode(ctx context.Context, info *NodeInfo) (*AddNodeResponse, error) {
 	err := n.RegisterNode(info)
 	if err != nil {
@@ -203,6 +212,8 @@ func (n *Node) AddNode(ctx context.Context, info *NodeInfo) (*AddNodeResponse, e
 	}, nil
 }
 
+// JoinRaft sends a configuration change to nodes to
+// add a new member to the raft cluster
 func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse, error) {
 	confChange := raftpb.ConfChange{
 		ID:      info.ID,
@@ -225,6 +236,8 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 	}, nil
 }
 
+// LeaveRaft sends a configuration change for a node
+// that is willing to abandon its raft cluster membership
 func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftResponse, error) {
 	confChange := raftpb.ConfChange{
 		ID:      info.ID,
@@ -247,12 +260,15 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 	}, nil
 }
 
+// Send calls 'Step' which advances the raft state
+// machine with the received message
 func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
 	n.Raft.Step(n.Ctx, *message)
 
 	return &Acknowledgment{}, nil
 }
 
+// Saves a log entry to our Store
 func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
 	n.Store.Append(entries)
 
@@ -265,6 +281,7 @@ func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 	}
 }
 
+// Sends a series of messages to members in the raft
 func (n *Node) send(messages []raftpb.Message) {
 	for _, m := range messages {
 		// Process locally
@@ -288,10 +305,15 @@ func (n *Node) send(messages []raftpb.Message) {
 	}
 }
 
+// Process snapshot is not yet implemented but applies
+// a snapshot to handle node failures and restart
 func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
+	// TODO
 	panic(fmt.Sprintf("Applying snapshot on node %v is not implemented", n.ID))
 }
 
+// Process a data entry and optionnally triggers an event
+// or a function handler after the entry is processed
 func (n *Node) process(entry raftpb.Entry) {
 	if n.debug {
 		log.Printf("node %v: processing entry: %v\n", n.ID, entry)
@@ -319,7 +341,7 @@ func (n *Node) process(entry raftpb.Entry) {
 	}
 }
 
-// Register a new node on the cluster
+// RegisterNode registers a new node on the cluster
 func (n *Node) RegisterNode(node *NodeInfo) error {
 	var (
 		client *Proton
@@ -361,9 +383,15 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 	return nil
 }
 
-func (n *Node) Leader() bool {
+// IsLeader checks if we are the leader or not
+func (n *Node) IsLeader() bool {
 	if n.Raft.Status().Lead == n.ID {
 		return true
 	}
 	return false
+}
+
+// Leader returns the id of the leader
+func (n *Node) Leader() uint64 {
+	return n.Raft.Status().Lead
 }
