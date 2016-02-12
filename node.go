@@ -27,6 +27,8 @@ type Handler func(interface{})
 // Type Node represents the Raft Node useful
 // configuration.
 type Node struct {
+	raft.Node
+
 	Client  *Proton
 	Cluster *Cluster
 	Ctx     context.Context
@@ -40,7 +42,6 @@ type Node struct {
 	PStore map[string]string
 	Store  *raft.MemoryStorage
 	Cfg    *raft.Config
-	Raft   raft.Node
 	ticker <-chan time.Time
 	done   <-chan struct{}
 	debug  bool
@@ -106,7 +107,7 @@ func NewNode(id uint64, addr string, debug bool, appendEvent chan<- struct{}, ha
 		},
 	)
 
-	n.Raft = raft.StartNode(n.Cfg, peers)
+	n.Node = raft.StartNode(n.Cfg, peers)
 	return n
 }
 
@@ -124,8 +125,8 @@ func (n *Node) Start() {
 	for {
 		select {
 		case <-n.ticker:
-			n.Raft.Tick()
-		case rd := <-n.Raft.Ready():
+			n.Tick()
+		case rd := <-n.Ready():
 			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
 			n.send(rd.Messages)
 			if !raft.IsEmptySnap(rd.Snapshot) {
@@ -136,10 +137,10 @@ func (n *Node) Start() {
 				if entry.Type == raftpb.EntryConfChange {
 					var cc raftpb.ConfChange
 					cc.Unmarshal(entry.Data)
-					n.Raft.ApplyConfChange(cc)
+					n.ApplyConfChange(cc)
 				}
 			}
-			n.Raft.Advance()
+			n.Advance()
 		case <-n.done:
 			return
 		}
@@ -222,7 +223,7 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 		Context: []byte(""),
 	}
 
-	err := n.Raft.ProposeConfChange(n.Ctx, confChange)
+	err := n.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
 		return &JoinRaftResponse{
 			Success: false,
@@ -246,7 +247,7 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 		Context: []byte(""),
 	}
 
-	err := n.Raft.ProposeConfChange(n.Ctx, confChange)
+	err := n.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
 		return &LeaveRaftResponse{
 			Success: false,
@@ -263,7 +264,7 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 // Send calls 'Step' which advances the raft state
 // machine with the received message
 func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
-	n.Raft.Step(n.Ctx, *message)
+	n.Step(n.Ctx, *message)
 
 	return &Acknowledgment{}, nil
 }
@@ -286,7 +287,7 @@ func (n *Node) send(messages []raftpb.Message) {
 	for _, m := range messages {
 		// Process locally
 		if m.To == n.ID {
-			n.Raft.Step(n.Ctx, m)
+			n.Step(n.Ctx, m)
 			continue
 		}
 
@@ -298,7 +299,7 @@ func (n *Node) send(messages []raftpb.Message) {
 			_, err := node.Client.Client.Send(n.Ctx, &m)
 			if err != nil {
 				node.Client.Conn.Close()
-				n.Raft.ReportUnreachable(node.ID)
+				n.ReportUnreachable(node.ID)
 				n.Cluster.RemoveNode(node.ID)
 			}
 		}
@@ -364,7 +365,7 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 			_, err := client.Client.Ping(context.Background(), &PingRequest{})
 			if err != nil {
 				client.Conn.Close()
-				n.Raft.ReportUnreachable(node.ID)
+				n.ReportUnreachable(node.ID)
 				n.Cluster.RemoveNode(node.ID)
 				return
 			}
@@ -385,7 +386,7 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 
 // IsLeader checks if we are the leader or not
 func (n *Node) IsLeader() bool {
-	if n.Raft.Status().Lead == n.ID {
+	if n.Node.Status().Lead == n.ID {
 		return true
 	}
 	return false
@@ -393,5 +394,5 @@ func (n *Node) IsLeader() bool {
 
 // Leader returns the id of the leader
 func (n *Node) Leader() uint64 {
-	return n.Raft.Status().Lead
+	return n.Node.Status().Lead
 }

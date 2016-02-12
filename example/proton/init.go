@@ -30,7 +30,7 @@ func initcluster(c *cli.Context) {
 	id := proton.GenID(hostname)
 
 	node := proton.NewNode(id, hosts[0], c.Bool("withRaftLogs"), nil, handler)
-	node.Raft.Campaign(node.Ctx)
+	node.Campaign(node.Ctx)
 	go node.Start()
 
 	log.Println("Starting raft transport layer..")
@@ -52,7 +52,7 @@ func initcluster(c *cli.Context) {
 				fmt.Println("---> Leading the raft")
 			}
 
-			node.Raft.Propose(node.Ctx, pair)
+			node.Propose(node.Ctx, pair)
 			i++
 		}
 	}()
