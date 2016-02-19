@@ -12,20 +12,20 @@ const (
 	MaxRetryTime = 3
 )
 
-type Proton struct {
-	Client ProtonClient
-	Conn   *grpc.ClientConn
+type Raft struct {
+	RaftClient
+	Conn *grpc.ClientConn
 }
 
-func GetProtonClient(addr string, timeout time.Duration) (*Proton, error) {
+func GetRaftClient(addr string, timeout time.Duration) (*Raft, error) {
 	conn, err := getClientConn(addr, "tcp", timeout)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Proton{
-		Client: NewProtonClient(conn),
-		Conn:   conn,
+	return &Raft{
+		RaftClient: NewRaftClient(conn),
+		Conn:       conn,
 	}, nil
 }
 
@@ -51,6 +51,6 @@ func EncodePair(key string, value []byte) ([]byte, error) {
 	return data, nil
 }
 
-func Register(server *grpc.Server, node *Node) {
-	RegisterProtonServer(server, node)
+func Register(server *grpc.Server, node *RaftNode) {
+	RegisterRaftServer(server, node)
 }

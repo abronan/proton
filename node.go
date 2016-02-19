@@ -6,7 +6,10 @@ import (
 	"hash/fnv"
 	"log"
 	"math"
+	"net"
 	"time"
+
+	"google.golang.org/grpc"
 
 	"golang.org/x/net/context"
 
@@ -24,27 +27,34 @@ var (
 // everytime there is an append entry event
 type Handler func(interface{})
 
-// Type Node represents the Raft Node useful
+// Type RaftNode represents the Raft Node useful
 // configuration.
-type Node struct {
+type RaftNode struct {
 	raft.Node
 
-	Client  *Proton
-	Cluster *Cluster
-	Ctx     context.Context
+	Client   *Raft
+	Cluster  *Cluster
+	Server   *grpc.Server
+	Listener net.Listener
+	Ctx      context.Context
 
-	ID     uint64
-	Addr   string
-	Port   int
-	Status Status
-	Error  error
+	ID    uint64
+	Addr  string
+	Port  int
+	Error error
 
 	PStore map[string]string
 	Store  *raft.MemoryStorage
 	Cfg    *raft.Config
-	ticker <-chan time.Time
-	done   <-chan struct{}
-	debug  bool
+
+	transport *Transport
+	ticker    <-chan time.Time
+	done      <-chan struct{}
+	stopChan  chan struct{}
+	pauseChan chan bool
+	paused    bool
+	rcvmsg    []raftpb.Message
+	debug     bool
 
 	// Event is a receive only channel that
 	// receives an event when an entry is
@@ -58,52 +68,50 @@ type Node struct {
 	handler Handler
 }
 
-// Status represents the status of the node
-type Status int
+// TODO implement clean Transport interface?
+type Transport interface {
+}
 
-const (
-	UP Status = iota
-	DOWN
-	PENDING
-)
-
-// Hearbeat regular interval
-const hb = 1
-
-// NewNode generates a new Raft node based on an unique
+// NewRaftNode generates a new Raft node based on an unique
 // ID, an address and optionally: a handler and receive
 // only channel to send event when en entry is committed
 // to the logs
-func NewNode(id uint64, addr string, debug bool, appendEvent chan<- struct{}, handler Handler) *Node {
+func NewRaftNode(id uint64, addr string, heartbeat int, server *grpc.Server, listener net.Listener, debug bool, appendEvent chan<- struct{}, handler Handler) *RaftNode {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
-	n := &Node{
-		ID:      id,
-		Ctx:     context.TODO(),
-		Cluster: NewCluster(),
-		Store:   store,
-		Addr:    addr,
+	n := &RaftNode{
+		ID:       id,
+		Ctx:      context.TODO(),
+		Cluster:  NewCluster(),
+		Server:   server,
+		Listener: listener,
+		Store:    store,
+		Addr:     addr,
 		Cfg: &raft.Config{
 			ID:              id,
-			ElectionTick:    5 * hb,
-			HeartbeatTick:   hb,
+			ElectionTick:    5 * heartbeat,
+			HeartbeatTick:   heartbeat,
 			Storage:         store,
 			MaxSizePerMsg:   math.MaxUint16,
 			MaxInflightMsgs: 256,
 		},
-		PStore:  make(map[string]string),
-		ticker:  time.Tick(time.Second),
-		done:    make(chan struct{}),
-		event:   appendEvent,
-		handler: handler,
-		debug:   debug,
+		PStore:    make(map[string]string),
+		ticker:    time.Tick(time.Second),
+		done:      make(chan struct{}),
+		stopChan:  make(chan struct{}),
+		pauseChan: make(chan bool),
+		event:     appendEvent,
+		handler:   handler,
+		debug:     debug,
 	}
 
-	n.Cluster.AddNodes(
-		&Node{
-			ID:   id,
-			Addr: addr,
+	n.Cluster.AddPeer(
+		&Peer{
+			NodeInfo: &NodeInfo{
+				ID:   id,
+				Addr: addr,
+			},
 		},
 	)
 
@@ -121,11 +129,12 @@ func GenID(hostname string) uint64 {
 // goes along the state machine, acting on the
 // messages received from other Raft nodes in
 // the cluster
-func (n *Node) Start() {
+func (n *RaftNode) Start() {
 	for {
 		select {
 		case <-n.ticker:
 			n.Tick()
+
 		case rd := <-n.Ready():
 			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
 			n.send(rd.Messages)
@@ -137,93 +146,68 @@ func (n *Node) Start() {
 				if entry.Type == raftpb.EntryConfChange {
 					var cc raftpb.ConfChange
 					cc.Unmarshal(entry.Data)
+					switch cc.Type {
+					case raftpb.ConfChangeAddNode:
+						peer, err := unmarshalNodeInfo(cc.Context)
+						if err != nil {
+							continue
+						}
+						if n.ID != peer.ID {
+							n.RegisterNode(peer)
+						}
+					case raftpb.ConfChangeRemoveNode:
+						n.UnregisterNode(cc.NodeID)
+						n.ReportUnreachable(cc.NodeID)
+					default:
+					}
 					n.ApplyConfChange(cc)
 				}
 			}
 			n.Advance()
+
+		case <-n.stopChan:
+			n.Stop()
+			n.Node = nil
+			close(n.stopChan)
+			return
+
+		case pause := <-n.pauseChan:
+			n.paused = pause
+			n.rcvmsg = make([]raftpb.Message, 0)
+			for pause {
+				select {
+				case pause = <-n.pauseChan:
+					n.paused = pause
+				}
+			}
+			// process pending messages
+			for _, m := range n.rcvmsg {
+				n.Step(context.TODO(), m)
+			}
+			n.rcvmsg = nil
+
 		case <-n.done:
 			return
 		}
 	}
 }
 
-// Ping is used to ping nodes regularily to clean up
-// the connection if something went wrong on the comm
-// layer side
-func (n *Node) Ping(ctx context.Context, ping *PingRequest) (*Acknowledgment, error) {
-	return &Acknowledgment{}, nil
-}
-
-// JoinCluster adds a new member to the cluster, it is
-// called from the new member who is willing to join an
-// existing cluster
-func (n *Node) JoinCluster(ctx context.Context, info *NodeInfo) (*JoinClusterResponse, error) {
-	nodes := []*NodeInfo{}
-
-	for _, node := range n.Cluster.Nodes {
-		nodes = append(nodes, &NodeInfo{
-			ID:   node.ID,
-			Addr: node.Addr,
-		})
-
-		if node.ID == n.ID {
-			continue
-		}
-
-		// Register node on other machines that are part of the cluster
-		resp, err := node.Client.Client.AddNode(ctx, info)
-		if err != nil || !resp.Success {
-			return &JoinClusterResponse{
-				Success: false,
-				Error:   resp.Error,
-			}, nil
-		}
-	}
-
-	err := n.RegisterNode(info)
-	if err != nil {
-		return &JoinClusterResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	return &JoinClusterResponse{
-		Success: true,
-		Error:   "",
-		Info:    nodes,
-	}, nil
-}
-
-// AddNode registers a new node in the cluster, it is
-// used from other nodes to spread the information of
-// a new member added to the cluster
-func (n *Node) AddNode(ctx context.Context, info *NodeInfo) (*AddNodeResponse, error) {
-	err := n.RegisterNode(info)
-	if err != nil {
-		return &AddNodeResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	return &AddNodeResponse{
-		Success: true,
-		Error:   "",
-	}, nil
-}
-
 // JoinRaft sends a configuration change to nodes to
 // add a new member to the raft cluster
-func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse, error) {
+func (n *RaftNode) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse, error) {
+	meta, err := proto.Marshal(info)
+	if err != nil {
+		log.Fatal("Can't marshal node: ", info.ID)
+	}
+
 	confChange := raftpb.ConfChange{
 		ID:      info.ID,
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  info.ID,
-		Context: []byte(""),
+		Context: meta,
 	}
 
-	err := n.ProposeConfChange(n.Ctx, confChange)
+	err = n.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
 		return &JoinRaftResponse{
 			Success: false,
@@ -231,15 +215,24 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 		}, nil
 	}
 
+	nodes := make([]*NodeInfo, 0)
+	for _, node := range n.Cluster.Peers {
+		nodes = append(nodes, &NodeInfo{
+			ID:   node.ID,
+			Addr: node.Addr,
+		})
+	}
+
 	return &JoinRaftResponse{
 		Success: true,
+		Nodes:   nodes,
 		Error:   "",
 	}, nil
 }
 
 // LeaveRaft sends a configuration change for a node
 // that is willing to abandon its raft cluster membership
-func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftResponse, error) {
+func (n *RaftNode) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftResponse, error) {
 	confChange := raftpb.ConfChange{
 		ID:      info.ID,
 		Type:    raftpb.ConfChangeRemoveNode,
@@ -263,14 +256,23 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 
 // Send calls 'Step' which advances the raft state
 // machine with the received message
-func (n *Node) Send(ctx context.Context, message *raftpb.Message) (*Acknowledgment, error) {
-	n.Step(n.Ctx, *message)
+func (n *RaftNode) Send(ctx context.Context, msg *raftpb.Message) (*SendResponse, error) {
+	var err error
 
-	return &Acknowledgment{}, nil
+	if n.paused {
+		n.rcvmsg = append(n.rcvmsg, *msg)
+	} else {
+		err = n.Step(n.Ctx, *msg)
+		if err != nil {
+			return &SendResponse{Error: err.Error()}, nil
+		}
+	}
+
+	return &SendResponse{Error: ""}, nil
 }
 
 // Saves a log entry to our Store
-func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
+func (n *RaftNode) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.Snapshot) {
 	n.Store.Append(entries)
 
 	if !raft.IsEmptyHardState(hardState) {
@@ -283,7 +285,7 @@ func (n *Node) saveToStorage(hardState raftpb.HardState, entries []raftpb.Entry,
 }
 
 // Sends a series of messages to members in the raft
-func (n *Node) send(messages []raftpb.Message) {
+func (n *RaftNode) send(messages []raftpb.Message) {
 	for _, m := range messages {
 		// Process locally
 		if m.To == n.ID {
@@ -292,15 +294,15 @@ func (n *Node) send(messages []raftpb.Message) {
 		}
 
 		// If node is an active raft member send the message
-		if node, ok := n.Cluster.Nodes[m.To]; ok {
+		if peer, ok := n.Cluster.Peers[m.To]; ok {
 			if n.debug {
 				log.Println(raft.DescribeMessage(m, nil))
 			}
-			_, err := node.Client.Client.Send(n.Ctx, &m)
+			_, err := peer.Client.Send(n.Ctx, &m)
 			if err != nil {
-				node.Client.Conn.Close()
-				n.ReportUnreachable(node.ID)
-				n.Cluster.RemoveNode(node.ID)
+				if err := n.RemoveNode(peer); err != nil {
+					log.Println("Cannot report node unreachable for ID: ", peer.ID)
+				}
 			}
 		}
 	}
@@ -308,14 +310,14 @@ func (n *Node) send(messages []raftpb.Message) {
 
 // Process snapshot is not yet implemented but applies
 // a snapshot to handle node failures and restart
-func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
+func (n *RaftNode) processSnapshot(snapshot raftpb.Snapshot) {
 	// TODO
 	panic(fmt.Sprintf("Applying snapshot on node %v is not implemented", n.ID))
 }
 
 // Process a data entry and optionnally triggers an event
 // or a function handler after the entry is processed
-func (n *Node) process(entry raftpb.Entry) {
+func (n *RaftNode) process(entry raftpb.Entry) {
 	if n.debug {
 		log.Printf("node %v: processing entry: %v\n", n.ID, entry)
 	}
@@ -342,15 +344,30 @@ func (n *Node) process(entry raftpb.Entry) {
 	}
 }
 
+func (n *RaftNode) RemoveNode(node *Peer) error {
+	confChange := raftpb.ConfChange{
+		ID:      node.ID,
+		Type:    raftpb.ConfChangeRemoveNode,
+		NodeID:  node.ID,
+		Context: []byte(""),
+	}
+
+	err := n.ProposeConfChange(n.Ctx, confChange)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // RegisterNode registers a new node on the cluster
-func (n *Node) RegisterNode(node *NodeInfo) error {
+func (n *RaftNode) RegisterNode(node *NodeInfo) error {
 	var (
-		client *Proton
+		client *Raft
 		err    error
 	)
 
 	for i := 1; i <= MaxRetryTime; i++ {
-		client, err = GetProtonClient(node.Addr, 2*time.Second)
+		client, err = GetRaftClient(node.Addr, 2*time.Second)
 		if err != nil {
 			if i == MaxRetryTime {
 				return ErrConnectionRefused
@@ -358,34 +375,39 @@ func (n *Node) RegisterNode(node *NodeInfo) error {
 		}
 	}
 
-	// Monitor connection
-	go func() {
-		ticker := time.NewTicker(time.Second * 10)
-		for _ = range ticker.C {
-			_, err := client.Client.Ping(context.Background(), &PingRequest{})
-			if err != nil {
-				client.Conn.Close()
-				n.ReportUnreachable(node.ID)
-				n.Cluster.RemoveNode(node.ID)
-				return
-			}
-		}
-	}()
-
-	n.Cluster.AddNodes(
-		&Node{
-			ID:     node.ID,
-			Addr:   node.Addr,
-			Client: client,
-			Error:  err,
+	n.Cluster.AddPeer(
+		&Peer{
+			NodeInfo: node,
+			Client:   client,
 		},
 	)
 
 	return nil
 }
 
+// RegisterNodes registers a set of nodes in the cluster
+func (n *RaftNode) RegisterNodes(nodes []*NodeInfo) error {
+	for _, node := range nodes {
+		n.RegisterNode(node)
+	}
+
+	return nil
+}
+
+// UnregisterNode unregisters a node that has died or
+// has gracefully left the raft subsystem
+func (n *RaftNode) UnregisterNode(id uint64) {
+	// Do not unregister yourself
+	if n.ID == id {
+		return
+	}
+
+	n.Cluster.Peers[id].Client.Conn.Close()
+	n.Cluster.RemovePeer(id)
+}
+
 // IsLeader checks if we are the leader or not
-func (n *Node) IsLeader() bool {
+func (n *RaftNode) IsLeader() bool {
 	if n.Node.Status().Lead == n.ID {
 		return true
 	}
@@ -393,6 +415,15 @@ func (n *Node) IsLeader() bool {
 }
 
 // Leader returns the id of the leader
-func (n *Node) Leader() uint64 {
+func (n *RaftNode) Leader() uint64 {
 	return n.Node.Status().Lead
+}
+
+func unmarshalNodeInfo(nodeInfo []byte) (*NodeInfo, error) {
+	info := &NodeInfo{}
+	err := proto.Unmarshal(nodeInfo, info)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
 }

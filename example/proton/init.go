@@ -23,20 +23,20 @@ func initcluster(c *cli.Context) {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	server := grpc.NewServer()
 
 	hostname := c.String("hostname")
 
 	id := proton.GenID(hostname)
 
-	node := proton.NewNode(id, hosts[0], c.Bool("withRaftLogs"), nil, handler)
+	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, c.Bool("withRaftLogs"), nil, handler)
 	node.Campaign(node.Ctx)
 	go node.Start()
 
 	log.Println("Starting raft transport layer..")
-	proton.Register(s, node)
+	proton.Register(server, node)
 
-	go s.Serve(lis)
+	go server.Serve(lis)
 
 	ticker := time.NewTicker(time.Second * 10)
 	go func() {
