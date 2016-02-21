@@ -2,11 +2,16 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
+	"github.com/coreos/etcd/raft"
+)
+
+var (
+	raftLogger = &raft.DefaultLogger{Logger: log.New(os.Stderr, "raft", log.LstdFlags)}
 )
 
 func main() {
@@ -39,24 +44,6 @@ func main() {
 			Value: "/tmp/proton",
 			Usage: "path to boltdb",
 		},
-	}
-
-	// Logs
-	app.Before = func(c *cli.Context) error {
-		log.SetOutput(os.Stderr)
-		level, err := log.ParseLevel(c.String("log-level"))
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-		log.SetLevel(level)
-
-		// If a log level wasn't specified and we are running
-		// in debug mode, enforce log-level=debug.
-		if !c.IsSet("log-level") && !c.IsSet("l") && c.Bool("debug") {
-			log.SetLevel(log.DebugLevel)
-		}
-
-		return nil
 	}
 
 	app.Commands = commands

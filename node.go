@@ -20,7 +20,7 @@ import (
 
 var (
 	ErrConnectionRefused = errors.New("Connection refused to the node")
-	ErrConfChangeRefused = errors.New("Can't add node to the cluster")
+	ErrConfChangeRefused = errors.New("Propose configuration change refused")
 )
 
 // Handler function can be used and triggered
@@ -52,9 +52,8 @@ type RaftNode struct {
 	done      <-chan struct{}
 	stopChan  chan struct{}
 	pauseChan chan bool
-	paused    bool
+	pause     bool
 	rcvmsg    []raftpb.Message
-	debug     bool
 
 	// Event is a receive only channel that
 	// receives an event when an entry is
@@ -76,7 +75,7 @@ type Transport interface {
 // ID, an address and optionally: a handler and receive
 // only channel to send event when en entry is committed
 // to the logs
-func NewRaftNode(id uint64, addr string, heartbeat int, server *grpc.Server, listener net.Listener, debug bool, appendEvent chan<- struct{}, handler Handler) *RaftNode {
+func NewRaftNode(id uint64, addr string, heartbeat int, server *grpc.Server, listener net.Listener, logger raft.Logger, appendEvent chan<- struct{}, handler Handler) *RaftNode {
 	store := raft.NewMemoryStorage()
 	peers := []raft.Peer{{ID: id}}
 
@@ -90,11 +89,12 @@ func NewRaftNode(id uint64, addr string, heartbeat int, server *grpc.Server, lis
 		Addr:     addr,
 		Cfg: &raft.Config{
 			ID:              id,
-			ElectionTick:    5 * heartbeat,
+			ElectionTick:    3 * heartbeat,
 			HeartbeatTick:   heartbeat,
 			Storage:         store,
 			MaxSizePerMsg:   math.MaxUint16,
 			MaxInflightMsgs: 256,
+			Logger:          logger,
 		},
 		PStore:    make(map[string]string),
 		ticker:    time.Tick(time.Second),
@@ -103,7 +103,6 @@ func NewRaftNode(id uint64, addr string, heartbeat int, server *grpc.Server, lis
 		pauseChan: make(chan bool),
 		event:     appendEvent,
 		handler:   handler,
-		debug:     debug,
 	}
 
 	n.Cluster.AddPeer(
@@ -157,7 +156,6 @@ func (n *RaftNode) Start() {
 						}
 					case raftpb.ConfChangeRemoveNode:
 						n.UnregisterNode(cc.NodeID)
-						n.ReportUnreachable(cc.NodeID)
 					default:
 					}
 					n.ApplyConfChange(cc)
@@ -171,13 +169,11 @@ func (n *RaftNode) Start() {
 			close(n.stopChan)
 			return
 
-		case pause := <-n.pauseChan:
-			n.paused = pause
+		case n.pause = <-n.pauseChan:
 			n.rcvmsg = make([]raftpb.Message, 0)
-			for pause {
+			for n.pause {
 				select {
-				case pause = <-n.pauseChan:
-					n.paused = pause
+				case n.pause = <-n.pauseChan:
 				}
 			}
 			// process pending messages
@@ -190,6 +186,16 @@ func (n *RaftNode) Start() {
 			return
 		}
 	}
+}
+
+// Pause pauses the raft node
+func (n *RaftNode) Pause() {
+	n.pauseChan <- true
+}
+
+// Resume brings back the raft node to activity
+func (n *RaftNode) Resume() {
+	n.pauseChan <- false
 }
 
 // JoinRaft sends a configuration change to nodes to
@@ -259,7 +265,7 @@ func (n *RaftNode) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRes
 func (n *RaftNode) Send(ctx context.Context, msg *raftpb.Message) (*SendResponse, error) {
 	var err error
 
-	if n.paused {
+	if n.pause {
 		n.rcvmsg = append(n.rcvmsg, *msg)
 	} else {
 		err = n.Step(n.Ctx, *msg)
@@ -295,14 +301,9 @@ func (n *RaftNode) send(messages []raftpb.Message) {
 
 		// If node is an active raft member send the message
 		if peer, ok := n.Cluster.Peers[m.To]; ok {
-			if n.debug {
-				log.Println(raft.DescribeMessage(m, nil))
-			}
 			_, err := peer.Client.Send(n.Ctx, &m)
 			if err != nil {
-				if err := n.RemoveNode(peer); err != nil {
-					log.Println("Cannot report node unreachable for ID: ", peer.ID)
-				}
+				n.ReportUnreachable(peer.ID)
 			}
 		}
 	}
@@ -318,10 +319,6 @@ func (n *RaftNode) processSnapshot(snapshot raftpb.Snapshot) {
 // Process a data entry and optionnally triggers an event
 // or a function handler after the entry is processed
 func (n *RaftNode) process(entry raftpb.Entry) {
-	if n.debug {
-		log.Printf("node %v: processing entry: %v\n", n.ID, entry)
-	}
-
 	if entry.Type == raftpb.EntryNormal && entry.Data != nil {
 		pair := &Pair{}
 		err := proto.Unmarshal(entry.Data, pair)
@@ -386,9 +383,12 @@ func (n *RaftNode) RegisterNode(node *NodeInfo) error {
 }
 
 // RegisterNodes registers a set of nodes in the cluster
-func (n *RaftNode) RegisterNodes(nodes []*NodeInfo) error {
+func (n *RaftNode) RegisterNodes(nodes []*NodeInfo) (err error) {
 	for _, node := range nodes {
-		n.RegisterNode(node)
+		err = n.RegisterNode(node)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

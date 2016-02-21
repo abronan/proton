@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"time"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/abronan/proton"
 	"github.com/codegangsta/cli"
+	"github.com/coreos/etcd/raft"
 )
 
 func join(c *cli.Context) {
@@ -31,8 +34,12 @@ func join(c *cli.Context) {
 	joinAddr := c.String("join")
 	hostname := c.String("hostname")
 
+	if c.Bool("withRaftLogs") {
+		raftLogger = &raft.DefaultLogger{Logger: log.New(ioutil.Discard, "", 0)}
+	}
+
 	id := proton.GenID(hostname)
-	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, c.Bool("withRaftLogs"), nil, handler)
+	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, raftLogger, nil, handler)
 
 	proton.Register(server, node)
 
@@ -59,6 +66,13 @@ func join(c *cli.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	ticker := time.NewTicker(time.Second * 5)
+	go func() {
+		for _ = range ticker.C {
+			fmt.Println("----- Leader is: ", node.Leader())
+		}
+	}()
 
 	select {}
 }

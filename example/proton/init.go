@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net"
 	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/abronan/proton"
 	"github.com/codegangsta/cli"
+	"github.com/coreos/etcd/raft"
 )
 
 func initcluster(c *cli.Context) {
@@ -29,7 +31,11 @@ func initcluster(c *cli.Context) {
 
 	id := proton.GenID(hostname)
 
-	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, c.Bool("withRaftLogs"), nil, handler)
+	if c.Bool("withRaftLogs") {
+		raftLogger = &raft.DefaultLogger{Logger: log.New(ioutil.Discard, "", 0)}
+	}
+
+	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, nil, nil, handler)
 	node.Campaign(node.Ctx)
 	go node.Start()
 
