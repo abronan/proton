@@ -2,43 +2,50 @@ package proton
 
 import "sync"
 
+// Cluster represents a set of active
+// raft members
 type Cluster struct {
-	sync.RWMutex
+	lock sync.RWMutex
 
-	Peers map[uint64]*Peer
+	peers map[uint64]*Peer
 }
 
+// Peer represents a raft cluster peer
 type Peer struct {
 	*NodeInfo
 
 	Client *Raft
 }
 
+// NewCluster creates a new cluster neighbors
+// list for a raft member
 func NewCluster() *Cluster {
 	return &Cluster{
-		Peers: make(map[uint64]*Peer),
+		peers: make(map[uint64]*Peer),
 	}
 }
 
-// Add a node to our neighbors
-func (t *Cluster) AddPeer(peer *Peer) {
-	t.Lock()
-	t.Peers[peer.ID] = peer
-	t.Unlock()
-}
-
-// Add multiple nodes to our neighbors
-func (t *Cluster) AddPeers(peers []*NodeInfo) {
-	t.Lock()
-	for _, peer := range peers {
-		t.Peers[peer.ID] = &Peer{NodeInfo: peer}
+// Peers returns the list of peers in the cluster
+func (c *Cluster) Peers() map[uint64]*Peer {
+	peers := make(map[uint64]*Peer)
+	c.lock.RLock()
+	for k, v := range c.peers {
+		peers[k] = v
 	}
-	t.Unlock()
+	c.lock.RUnlock()
+	return peers
 }
 
-//Remove a node from our neighbors
-func (t *Cluster) RemovePeer(id uint64) {
-	t.Lock()
-	delete(t.Peers, id)
-	t.Unlock()
+// AddPeer adds a node to our neighbors
+func (c *Cluster) AddPeer(peer *Peer) {
+	c.lock.Lock()
+	c.peers[peer.ID] = peer
+	c.lock.Unlock()
+}
+
+// RemovePeer removes a node from our neighbors
+func (c *Cluster) RemovePeer(id uint64) {
+	c.lock.Lock()
+	delete(c.peers, id)
+	c.lock.Unlock()
 }

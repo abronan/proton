@@ -35,7 +35,14 @@ func initcluster(c *cli.Context) {
 		raftLogger = &raft.DefaultLogger{Logger: log.New(ioutil.Discard, "", 0)}
 	}
 
-	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, nil, nil, handler)
+	cfg := proton.DefaultNodeConfig()
+	cfg.Logger = raftLogger
+
+	node, err := proton.NewNode(id, hosts[0], cfg, handler)
+	if err != nil {
+		log.Fatal("Can't initialize raft node")
+	}
+
 	node.Campaign(node.Ctx)
 	go node.Start()
 

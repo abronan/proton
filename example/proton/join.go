@@ -39,7 +39,13 @@ func join(c *cli.Context) {
 	}
 
 	id := proton.GenID(hostname)
-	node := proton.NewRaftNode(id, hosts[0], 1, server, lis, raftLogger, nil, handler)
+	cfg := proton.DefaultNodeConfig()
+	cfg.Logger = raftLogger
+
+	node, err := proton.NewNode(id, hosts[0], cfg, handler)
+	if err != nil {
+		log.Fatal("Can't initialize raft node")
+	}
 
 	proton.Register(server, node)
 
