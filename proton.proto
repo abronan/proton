@@ -8,6 +8,10 @@ service Raft {
   rpc JoinRaft(NodeInfo) returns (JoinRaftResponse) {}
   rpc LeaveRaft(NodeInfo) returns (LeaveRaftResponse) {}
   rpc Send(raftpb.Message) returns (SendResponse) {}
+
+  rpc PutObject(PutObjectRequest) returns (PutObjectResponse) {}
+  rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse) {}
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {}
 }
 
 message JoinRaftResponse {
@@ -24,6 +28,27 @@ message LeaveRaftResponse {
 message SendResponse {
   bool success = 1;
   string error = 2;
+}
+
+message PutObjectRequest {
+  Pair object = 1;
+}
+
+message PutObjectResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ListObjectsRequest {}
+
+message ListObjectsResponse {
+  repeated Pair objects = 1;
+}
+
+message ListMembersRequest {}
+
+message ListMembersResponse {
+  repeated NodeInfo members = 1;
 }
 
 message NodeInfo {

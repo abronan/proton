@@ -41,4 +41,14 @@ var (
 		Usage:  "hostname of the raft node",
 		EnvVar: "PROTON_HOSTNAME",
 	}
+
+	flKey = cli.StringFlag{
+		Name:  "key",
+		Usage: "key to put in the store",
+	}
+
+	flValue = cli.StringFlag{
+		Name:  "value",
+		Usage: "value to put in the store",
+	}
 )

@@ -331,6 +331,45 @@ func (n *Node) Send(ctx context.Context, msg *raftpb.Message) (*SendResponse, er
 	return &SendResponse{Error: ""}, nil
 }
 
+// ListMembers lists the members in the raft cluster
+func (n *Node) ListMembers(ctx context.Context, req *ListMembersRequest) (*ListMembersResponse, error) {
+	var peers []*NodeInfo
+	for _, peer := range n.Cluster.Peers() {
+		peers = append(peers, peer.NodeInfo)
+	}
+
+	return &ListMembersResponse{Members: peers}, nil
+}
+
+// Put proposes and puts a value in the raft cluster
+func (n *Node) PutObject(ctx context.Context, req *PutObjectRequest) (*PutObjectResponse, error) {
+	pair, err := EncodePair(req.Object.Key, req.Object.Value)
+	if err != nil {
+		return &PutObjectResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	// Propose the value to the raft
+	err = n.Propose(n.Ctx, pair)
+	if err != nil {
+		return &PutObjectResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &PutObjectResponse{Success: true}, nil
+}
+
+// ListObjects list the objects in the raft cluster
+func (n *Node) ListObjects(ctx context.Context, req *ListObjectsRequest) (*ListObjectsResponse, error) {
+	pairs := n.ListPairs()
+
+	return &ListObjectsResponse{Objects: pairs}, nil
+}
+
 // RemoveNode removes a node from the raft cluster
 func (n *Node) RemoveNode(node *Peer) error {
 	confChange := raftpb.ConfChange{
@@ -409,6 +448,17 @@ func (n *Node) Put(key string, value string) {
 	n.storeLock.Lock()
 	defer n.storeLock.Unlock()
 	n.PStore[key] = value
+}
+
+// List lists the pair in the store
+func (n *Node) ListPairs() []*Pair {
+	n.storeLock.Lock()
+	defer n.storeLock.Unlock()
+	var pairs []*Pair
+	for k, v := range n.PStore {
+		pairs = append(pairs, &Pair{Key: k, Value: []byte(v)})
+	}
+	return pairs
 }
 
 // StoreLength returns the length of the store
