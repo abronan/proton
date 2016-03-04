@@ -34,5 +34,11 @@ var (
 			Flags:  []cli.Flag{flHosts},
 			Action: members,
 		},
+		{
+			Name:   "merge",
+			Usage:  "Merge the current raft cluster with another one",
+			Flags:  []cli.Flag{flHosts, flJoin},
+			Action: merge,
+		},
 	}
 )

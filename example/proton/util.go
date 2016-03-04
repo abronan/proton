@@ -9,6 +9,8 @@ import (
 )
 
 func handler(msg interface{}) {
+	// TODO two types: Object and ObjectSet (for merging diffs)
+
 	// Here: can be a protobuf 'oneof' message
 	pair := &proton.Pair{}
 	err := proto.Unmarshal(msg.([]byte), pair)

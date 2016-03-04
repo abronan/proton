@@ -46,12 +46,29 @@ func getClientConn(addr string, protocol string, timeout time.Duration) (*grpc.C
 
 // EncodePair returns a protobuf encoded key/value pair to be sent through raft
 func EncodePair(key string, value []byte) ([]byte, error) {
-	k := proto.String(key)
-	pair := &Pair{
-		Key:   *k,
-		Value: value,
+	pair := &Proposal_Pair{
+		&Pair{Key: key, Value: value},
 	}
-	data, err := proto.Marshal(pair)
+	proposal := &Proposal{
+		Proposal: pair,
+	}
+	data, err := proto.Marshal(proposal)
+	if err != nil {
+		return nil, errors.New("Can't encode key/value using protobuf")
+	}
+	return data, nil
+}
+
+// EncodeDiff returns a protobuf encoded set of key/value
+// pairs to be sent through raft
+func EncodeDiff(objects []*Pair) ([]byte, error) {
+	diff := &Proposal_Diff{
+		&Diff{objects},
+	}
+	proposal := &Proposal{
+		Proposal: diff,
+	}
+	data, err := proto.Marshal(proposal)
 	if err != nil {
 		return nil, errors.New("Can't encode key/value using protobuf")
 	}

@@ -2,7 +2,6 @@ package proton
 
 import (
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"log"
 	"math"
@@ -29,6 +28,8 @@ var (
 	ErrConfChangeRefused = errors.New("propose configuration change refused")
 	// ErrApplyNotSpecified is thrown during the creation of a raft node when no apply method was provided
 	ErrApplyNotSpecified = errors.New("apply method was not specified")
+	// ErrRaftMerging is thrown when we try to send a message to a node that is in the middle of a merge process
+	ErrRaftMerging = errors.New("can't send message, raft node in the middle of merge process")
 )
 
 // ApplyCommand function can be used and triggered
@@ -52,7 +53,7 @@ type Node struct {
 	Error   error
 
 	storeLock sync.RWMutex
-	PStore    map[string]string
+	PStore    map[string][]byte
 	Store     *raft.MemoryStorage
 	Cfg       *raft.Config
 
@@ -61,7 +62,10 @@ type Node struct {
 	pauseChan chan bool
 	pauseLock sync.RWMutex
 	pause     bool
+	mergeLock sync.RWMutex
+	merge     bool
 	rcvmsg    []raftpb.Message
+	errCh     chan error
 
 	// ApplyCommand is called when a log entry
 	// is committed to the logs, behind can
@@ -97,7 +101,7 @@ func NewNode(id uint64, addr string, cfg *raft.Config, apply ApplyCommand) (*Nod
 			MaxInflightMsgs: cfg.MaxInflightMsgs,
 			Logger:          cfg.Logger,
 		},
-		PStore:    make(map[string]string),
+		PStore:    make(map[string][]byte),
 		ticker:    time.NewTicker(time.Second),
 		stopChan:  make(chan struct{}),
 		pauseChan: make(chan bool),
@@ -143,64 +147,74 @@ func GenID(hostname string) uint64 {
 // goes along the state machine, acting on the
 // messages received from other Raft nodes in
 // the cluster
-func (n *Node) Start() {
-	for {
-		select {
-		case <-n.ticker.C:
-			n.Tick()
+func (n *Node) Start() (errCh <-chan error) {
+	n.errCh = make(chan error)
+	go func() {
+		for {
+			select {
+			case <-n.ticker.C:
+				n.Tick()
 
-		case rd := <-n.Ready():
-			n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
-			n.send(rd.Messages)
-			if !raft.IsEmptySnap(rd.Snapshot) {
-				n.processSnapshot(rd.Snapshot)
-			}
-			for _, entry := range rd.CommittedEntries {
-				n.process(entry)
-				if entry.Type == raftpb.EntryConfChange {
-					var cc raftpb.ConfChange
-					err := cc.Unmarshal(entry.Data)
+			case rd := <-n.Ready():
+				if n.isMerging() {
+					continue
+				}
+				n.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot)
+				n.send(rd.Messages)
+				if !raft.IsEmptySnap(rd.Snapshot) {
+					n.processSnapshot(rd.Snapshot)
+				}
+				for _, entry := range rd.CommittedEntries {
+					err := n.process(entry)
 					if err != nil {
-						log.Fatal("raft: Can't unmarshal configuration change")
+						n.errCh <- err
 					}
-					switch cc.Type {
-					case raftpb.ConfChangeAddNode:
-						n.applyAddNode(cc)
-					case raftpb.ConfChangeRemoveNode:
-						n.applyRemoveNode(cc)
+					if entry.Type == raftpb.EntryConfChange {
+						var cc raftpb.ConfChange
+						err := cc.Unmarshal(entry.Data)
+						if err != nil {
+							n.errCh <- err
+						}
+						switch cc.Type {
+						case raftpb.ConfChangeAddNode:
+							n.applyAddNode(cc)
+						case raftpb.ConfChangeRemoveNode:
+							n.applyRemoveNode(cc)
+						}
+						n.ApplyConfChange(cc)
 					}
-					n.ApplyConfChange(cc)
 				}
-			}
-			n.Advance()
+				n.Advance()
 
-		case <-n.stopChan:
-			n.Stop()
-			n.Node = nil
-			close(n.stopChan)
-			return
+			case <-n.stopChan:
+				n.Stop()
+				n.Node = nil
+				close(n.stopChan)
+				return
 
-		case pause := <-n.pauseChan:
-			// FIXME lock hell
-			n.SetPaused(pause)
-			for n.pause {
-				select {
-				case pause = <-n.pauseChan:
-					n.SetPaused(pause)
+			case pause := <-n.pauseChan:
+				// FIXME lock hell
+				n.SetPaused(pause)
+				for n.pause {
+					select {
+					case pause = <-n.pauseChan:
+						n.SetPaused(pause)
+					}
 				}
-			}
-			n.pauseLock.Lock()
-			// process pending messages
-			for _, m := range n.rcvmsg {
-				err := n.Step(n.Ctx, m)
-				if err != nil {
-					log.Fatal("Something went wrong when unpausing the node")
+				n.pauseLock.Lock()
+				// process pending messages
+				for _, m := range n.rcvmsg {
+					err := n.Step(n.Ctx, m)
+					if err != nil {
+						log.Fatal("Something went wrong when unpausing the node")
+					}
 				}
+				n.rcvmsg = nil
+				n.pauseLock.Unlock()
 			}
-			n.rcvmsg = nil
-			n.pauseLock.Unlock()
 		}
-	}
+	}()
+	return n.errCh
 }
 
 // Shutdown stops the raft node processing loop.
@@ -267,10 +281,7 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 
 	err = n.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
-		return &JoinRaftResponse{
-			Success: false,
-			Error:   ErrConfChangeRefused.Error(),
-		}, nil
+		return nil, err
 	}
 
 	var nodes []*NodeInfo
@@ -281,11 +292,7 @@ func (n *Node) JoinRaft(ctx context.Context, info *NodeInfo) (*JoinRaftResponse,
 		})
 	}
 
-	return &JoinRaftResponse{
-		Success: true,
-		Nodes:   nodes,
-		Error:   "",
-	}, nil
+	return &JoinRaftResponse{Nodes: nodes}, nil
 }
 
 // LeaveRaft sends a configuration change for a node
@@ -300,16 +307,10 @@ func (n *Node) LeaveRaft(ctx context.Context, info *NodeInfo) (*LeaveRaftRespons
 
 	err := n.ProposeConfChange(n.Ctx, confChange)
 	if err != nil {
-		return &LeaveRaftResponse{
-			Success: false,
-			Error:   ErrConfChangeRefused.Error(),
-		}, nil
+		return nil, err
 	}
 
-	return &LeaveRaftResponse{
-		Success: true,
-		Error:   "",
-	}, nil
+	return &LeaveRaftResponse{}, nil
 }
 
 // Send calls 'Step' which advances the raft state
@@ -322,13 +323,16 @@ func (n *Node) Send(ctx context.Context, msg *raftpb.Message) (*SendResponse, er
 		n.rcvmsg = append(n.rcvmsg, *msg)
 		n.pauseLock.Unlock()
 	} else {
+		if n.isMerging() {
+			return nil, ErrRaftMerging
+		}
 		err = n.Step(n.Ctx, *msg)
 		if err != nil {
-			return &SendResponse{Error: err.Error()}, nil
+			return nil, err
 		}
 	}
 
-	return &SendResponse{Error: ""}, nil
+	return &SendResponse{}, nil
 }
 
 // ListMembers lists the members in the raft cluster
@@ -343,24 +347,17 @@ func (n *Node) ListMembers(ctx context.Context, req *ListMembersRequest) (*ListM
 
 // Put proposes and puts a value in the raft cluster
 func (n *Node) PutObject(ctx context.Context, req *PutObjectRequest) (*PutObjectResponse, error) {
-	pair, err := EncodePair(req.Object.Key, req.Object.Value)
+	prop, err := proto.Marshal(req.Proposal)
 	if err != nil {
-		return &PutObjectResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return nil, err
 	}
 
-	// Propose the value to the raft
-	err = n.Propose(n.Ctx, pair)
+	err = n.Propose(n.Ctx, prop)
 	if err != nil {
-		return &PutObjectResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return nil, err
 	}
 
-	return &PutObjectResponse{Success: true}, nil
+	return &PutObjectResponse{}, nil
 }
 
 // ListObjects list the objects in the raft cluster
@@ -368,6 +365,109 @@ func (n *Node) ListObjects(ctx context.Context, req *ListObjectsRequest) (*ListO
 	pairs := n.ListPairs()
 
 	return &ListObjectsResponse{Objects: pairs}, nil
+}
+
+// StopRaft is generally used from a coordinator node in the
+// raft to initiate or control a merge or split process
+func (n *Node) StopRaft(ctx context.Context, req *StopRaftRequest) (*StopRaftResponse, error) {
+	n.Stop()
+	return &StopRaftResponse{}, nil
+}
+
+// Merge initiates the process of merging two raft
+// clusters together, it calls MergeInit() on every
+// node affected by the operation
+func (n *Node) Merge(ctx context.Context, req *MergeRequest) (*MergeResponse, error) {
+	for _, m := range n.Cluster.Peers() {
+		_, err := m.Client.MergeInit(n.Ctx, &MergeInitRequest{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &MergeResponse{}, nil
+}
+
+// MergeInit initiates the process of merging two raft
+// clusters together, it is called from a node receiving
+// the request that the merging process has started, it is
+// used to notify everyone
+func (n *Node) MergeInit(ctx context.Context, req *MergeInitRequest) (*MergeInitResponse, error) {
+	var err error
+
+	// Stop the current raft node
+	n.initMerge()
+	n.closeConn()
+	n.Shutdown()
+	pairs := n.PStore
+
+	// Init a new Raft Node
+	cfg := DefaultNodeConfig()
+	cfg.Logger = defaultLogger
+	n, err = NewNode(n.ID, n.Address, cfg, n.apply)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start the new raft node
+	n.openConn()
+	n.Start()
+
+	// Join the new cluster
+	client, err := GetRaftClient(req.Nodes[0].Addr, 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	info := &NodeInfo{ID: n.ID, Addr: n.Address}
+	resp, err := client.JoinRaft(context.Background(), info)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = n.RegisterNodes(resp.GetNodes()); err != nil {
+		return nil, err
+	}
+
+	// If leader, propose diff and finalize merge
+	if n.IsLeader() {
+		var objects []*Pair
+		for k, v := range pairs {
+			objects = append(objects, &Pair{Key: k, Value: v})
+		}
+
+		proposal, err := EncodeDiff(objects)
+		if err != nil {
+			return nil, err
+		}
+
+		err = n.Propose(n.Ctx, proposal)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, node := range n.Cluster.Peers() {
+			if node.ID == n.ID {
+				continue
+			}
+			_, err := node.Client.MergeFinalize(n.Ctx, &MergeFinalizeRequest{})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		n.finalizeMerge()
+	}
+
+	return &MergeInitResponse{}, nil
+}
+
+// MergeFinalize finalizes the process of merging two raft
+// clusters together, it is called from the coordinator node
+// managing the merge process
+func (n *Node) MergeFinalize(ctx context.Context, req *MergeFinalizeRequest) (*MergeFinalizeResponse, error) {
+	n.finalizeMerge()
+	return &MergeFinalizeResponse{}, nil
 }
 
 // RemoveNode removes a node from the raft cluster
@@ -383,6 +483,7 @@ func (n *Node) RemoveNode(node *Peer) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -437,14 +538,14 @@ func (n *Node) UnregisterNode(id uint64) {
 }
 
 // Get returns a value from the PStore
-func (n *Node) Get(key string) string {
+func (n *Node) Get(key string) []byte {
 	n.storeLock.RLock()
 	defer n.storeLock.RUnlock()
 	return n.PStore[key]
 }
 
 // Put puts a value in the raft store
-func (n *Node) Put(key string, value string) {
+func (n *Node) Put(key string, value []byte) {
 	n.storeLock.Lock()
 	defer n.storeLock.Unlock()
 	n.PStore[key] = value
@@ -536,12 +637,12 @@ func (n *Node) send(messages []raftpb.Message) {
 
 // Process a data entry and optionnally triggers an event
 // or a function handler after the entry is processed
-func (n *Node) process(entry raftpb.Entry) {
+func (n *Node) process(entry raftpb.Entry) error {
 	if entry.Type == raftpb.EntryNormal && entry.Data != nil {
-		pair := &Pair{}
-		err := proto.Unmarshal(entry.Data, pair)
+		p := &Proposal{}
+		err := proto.Unmarshal(entry.Data, p)
 		if err != nil {
-			log.Fatal("raft: Can't decode key and value sent through raft")
+			return err
 		}
 
 		// Apply the command
@@ -549,14 +650,72 @@ func (n *Node) process(entry raftpb.Entry) {
 			n.apply(entry.Data)
 		}
 
-		// Put the value into the store
-		n.Put(pair.Key, string(pair.Value))
+		// Put the value(s) into the store
+		switch prop := p.GetProposal().(type) {
+		case *Proposal_Pair:
+			n.Put(prop.Pair.Key, prop.Pair.Value)
+		case *Proposal_Diff:
+			for _, pair := range prop.Diff.GetPairs() {
+				n.Put(pair.Key, pair.Value)
+			}
+		}
 	}
+	return nil
 }
 
 // Process snapshot is not yet implemented but applies
 // a snapshot to handle node failures and restart
-func (n *Node) processSnapshot(snapshot raftpb.Snapshot) {
-	// TODO
-	panic(fmt.Sprintf("Applying snapshot on node %v is not implemented", n.ID))
+func (n *Node) processSnapshot(snapshot raftpb.Snapshot) error {
+	return n.Store.ApplySnapshot(snapshot)
+}
+
+// Take snapshot takes a snapshot of the current state
+func (n *Node) takeSnapshot() error {
+	return nil
+}
+
+// Closes the connections for the raft node
+func (n *Node) closeConn() {
+	n.Server.Stop()
+	n.Server.TestingCloseConns()
+	n.Listener.Close()
+	n.Listener = nil
+
+	// FIXME need to wait for the connections
+	// to be cleaned up properly
+	time.Sleep(2 * time.Second)
+}
+
+// Opens up the connections to the raft node
+func (n *Node) openConn() error {
+	l, err := net.Listen("tcp", n.Address)
+	if err != nil {
+
+	}
+	s := grpc.NewServer()
+	Register(s, n)
+
+	go s.Serve(l)
+
+	n.Listener = l
+	n.Server = s
+	return nil
+}
+
+func (n *Node) initMerge() {
+	n.pauseLock.Lock()
+	n.pause = true
+	n.pauseLock.Unlock()
+}
+
+func (n *Node) finalizeMerge() {
+	n.pauseLock.Lock()
+	n.pause = false
+	n.pauseLock.Unlock()
+}
+
+func (n *Node) isMerging() bool {
+	n.pauseLock.Lock()
+	defer n.pauseLock.Unlock()
+	return n.pause
 }

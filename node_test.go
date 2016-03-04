@@ -54,7 +54,7 @@ func newInitNode(t *testing.T, id uint64) *Node {
 	n.Server = s
 
 	n.Campaign(n.Ctx)
-	go n.Start()
+	n.Start()
 
 	Register(s, n)
 	go s.Serve(l)
@@ -75,8 +75,7 @@ func newJoinNode(t *testing.T, id uint64, join string) *Node {
 	assert.NoError(t, err, "Can't create raft node")
 	n.Listener = l
 	n.Server = s
-
-	go n.Start()
+	n.Start()
 
 	c, err := GetRaftClient(join, 100*time.Millisecond)
 	assert.NoError(t, err, "Can't initiate connection with existing raft")

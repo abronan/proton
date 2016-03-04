@@ -34,7 +34,14 @@ func put(c *cli.Context) {
 		log.Fatal("couldn't initialize client connection")
 	}
 
-	resp, err := client.PutObject(context.TODO(), &proton.PutObjectRequest{Object: &proton.Pair{Key: key, Value: value}})
+	pair := &proton.Proposal_Pair{
+		&proton.Pair{Key: key, Value: value},
+	}
+	proposal := &proton.Proposal{
+		Proposal: pair,
+	}
+
+	resp, err := client.PutObject(context.TODO(), &proton.PutObjectRequest{proposal})
 	if resp == nil || err != nil {
 		log.Fatal("Can't put object in the cluster")
 	}

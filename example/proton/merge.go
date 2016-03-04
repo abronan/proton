@@ -10,29 +10,27 @@ import (
 	"golang.org/x/net/context"
 )
 
-func members(c *cli.Context) {
-	var (
-		err error
-	)
-
+func merge(c *cli.Context) {
 	hosts := c.StringSlice("host")
 	if c.IsSet("host") || c.IsSet("H") {
 		hosts = hosts[1:]
 	}
+
+	joinAddr := c.String("join")
 
 	client, err := proton.GetRaftClient(hosts[0], 2*time.Second)
 	if err != nil {
 		log.Fatal("couldn't initialize client connection")
 	}
 
-	resp, err := client.ListMembers(context.Background(), &proton.ListMembersRequest{})
+	_, err = client.Merge(context.Background(),
+		&proton.MergeRequest{
+			&proton.NodeInfo{Addr: joinAddr},
+		},
+	)
 	if err != nil {
-		log.Fatal("Can't list members in the cluster")
+		log.Fatal("Can't merge clusters")
 	}
 
-	fmt.Println("Nodes:")
-
-	for _, node := range resp.Members {
-		fmt.Println(":", node.ID)
-	}
+	fmt.Println("Cluster merged together")
 }

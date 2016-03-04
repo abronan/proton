@@ -18,8 +18,18 @@
 		ListObjectsResponse
 		ListMembersRequest
 		ListMembersResponse
+		StopRaftRequest
+		StopRaftResponse
+		MergeRequest
+		MergeResponse
+		MergeInitRequest
+		MergeInitResponse
+		MergeFinalizeRequest
+		MergeFinalizeResponse
 		NodeInfo
+		Proposal
 		Pair
+		Diff
 */
 package proton
 
@@ -43,9 +53,7 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 type JoinRaftResponse struct {
-	Success bool        `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string      `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	Nodes   []*NodeInfo `protobuf:"bytes,3,rep,name=nodes" json:"nodes,omitempty"`
+	Nodes []*NodeInfo `protobuf:"bytes,1,rep,name=nodes" json:"nodes,omitempty"`
 }
 
 func (m *JoinRaftResponse) Reset()         { *m = JoinRaftResponse{} }
@@ -60,8 +68,6 @@ func (m *JoinRaftResponse) GetNodes() []*NodeInfo {
 }
 
 type LeaveRaftResponse struct {
-	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
 func (m *LeaveRaftResponse) Reset()         { *m = LeaveRaftResponse{} }
@@ -69,8 +75,6 @@ func (m *LeaveRaftResponse) String() string { return proto.CompactTextString(m) 
 func (*LeaveRaftResponse) ProtoMessage()    {}
 
 type SendResponse struct {
-	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
 func (m *SendResponse) Reset()         { *m = SendResponse{} }
@@ -78,23 +82,21 @@ func (m *SendResponse) String() string { return proto.CompactTextString(m) }
 func (*SendResponse) ProtoMessage()    {}
 
 type PutObjectRequest struct {
-	Object *Pair `protobuf:"bytes,1,opt,name=object" json:"object,omitempty"`
+	Proposal *Proposal `protobuf:"bytes,1,opt,name=proposal" json:"proposal,omitempty"`
 }
 
 func (m *PutObjectRequest) Reset()         { *m = PutObjectRequest{} }
 func (m *PutObjectRequest) String() string { return proto.CompactTextString(m) }
 func (*PutObjectRequest) ProtoMessage()    {}
 
-func (m *PutObjectRequest) GetObject() *Pair {
+func (m *PutObjectRequest) GetProposal() *Proposal {
 	if m != nil {
-		return m.Object
+		return m.Proposal
 	}
 	return nil
 }
 
 type PutObjectResponse struct {
-	Success bool   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error   string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 }
 
 func (m *PutObjectResponse) Reset()         { *m = PutObjectResponse{} }
@@ -145,6 +147,78 @@ func (m *ListMembersResponse) GetMembers() []*NodeInfo {
 	return nil
 }
 
+type StopRaftRequest struct {
+}
+
+func (m *StopRaftRequest) Reset()         { *m = StopRaftRequest{} }
+func (m *StopRaftRequest) String() string { return proto.CompactTextString(m) }
+func (*StopRaftRequest) ProtoMessage()    {}
+
+type StopRaftResponse struct {
+}
+
+func (m *StopRaftResponse) Reset()         { *m = StopRaftResponse{} }
+func (m *StopRaftResponse) String() string { return proto.CompactTextString(m) }
+func (*StopRaftResponse) ProtoMessage()    {}
+
+type MergeRequest struct {
+	Node *NodeInfo `protobuf:"bytes,1,opt,name=node" json:"node,omitempty"`
+}
+
+func (m *MergeRequest) Reset()         { *m = MergeRequest{} }
+func (m *MergeRequest) String() string { return proto.CompactTextString(m) }
+func (*MergeRequest) ProtoMessage()    {}
+
+func (m *MergeRequest) GetNode() *NodeInfo {
+	if m != nil {
+		return m.Node
+	}
+	return nil
+}
+
+type MergeResponse struct {
+}
+
+func (m *MergeResponse) Reset()         { *m = MergeResponse{} }
+func (m *MergeResponse) String() string { return proto.CompactTextString(m) }
+func (*MergeResponse) ProtoMessage()    {}
+
+type MergeInitRequest struct {
+	Nodes []*NodeInfo `protobuf:"bytes,1,rep,name=nodes" json:"nodes,omitempty"`
+}
+
+func (m *MergeInitRequest) Reset()         { *m = MergeInitRequest{} }
+func (m *MergeInitRequest) String() string { return proto.CompactTextString(m) }
+func (*MergeInitRequest) ProtoMessage()    {}
+
+func (m *MergeInitRequest) GetNodes() []*NodeInfo {
+	if m != nil {
+		return m.Nodes
+	}
+	return nil
+}
+
+type MergeInitResponse struct {
+}
+
+func (m *MergeInitResponse) Reset()         { *m = MergeInitResponse{} }
+func (m *MergeInitResponse) String() string { return proto.CompactTextString(m) }
+func (*MergeInitResponse) ProtoMessage()    {}
+
+type MergeFinalizeRequest struct {
+}
+
+func (m *MergeFinalizeRequest) Reset()         { *m = MergeFinalizeRequest{} }
+func (m *MergeFinalizeRequest) String() string { return proto.CompactTextString(m) }
+func (*MergeFinalizeRequest) ProtoMessage()    {}
+
+type MergeFinalizeResponse struct {
+}
+
+func (m *MergeFinalizeResponse) Reset()         { *m = MergeFinalizeResponse{} }
+func (m *MergeFinalizeResponse) String() string { return proto.CompactTextString(m) }
+func (*MergeFinalizeResponse) ProtoMessage()    {}
+
 type NodeInfo struct {
 	ID    uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Addr  string `protobuf:"bytes,2,opt,name=Addr,proto3" json:"Addr,omitempty"`
@@ -156,6 +230,107 @@ func (m *NodeInfo) Reset()         { *m = NodeInfo{} }
 func (m *NodeInfo) String() string { return proto.CompactTextString(m) }
 func (*NodeInfo) ProtoMessage()    {}
 
+type Proposal struct {
+	// Types that are valid to be assigned to Proposal:
+	//	*Proposal_Pair
+	//	*Proposal_Diff
+	Proposal isProposal_Proposal `protobuf_oneof:"proposal"`
+}
+
+func (m *Proposal) Reset()         { *m = Proposal{} }
+func (m *Proposal) String() string { return proto.CompactTextString(m) }
+func (*Proposal) ProtoMessage()    {}
+
+type isProposal_Proposal interface {
+	isProposal_Proposal()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type Proposal_Pair struct {
+	Pair *Pair `protobuf:"bytes,1,opt,name=pair,oneof"`
+}
+type Proposal_Diff struct {
+	Diff *Diff `protobuf:"bytes,2,opt,name=diff,oneof"`
+}
+
+func (*Proposal_Pair) isProposal_Proposal() {}
+func (*Proposal_Diff) isProposal_Proposal() {}
+
+func (m *Proposal) GetProposal() isProposal_Proposal {
+	if m != nil {
+		return m.Proposal
+	}
+	return nil
+}
+
+func (m *Proposal) GetPair() *Pair {
+	if x, ok := m.GetProposal().(*Proposal_Pair); ok {
+		return x.Pair
+	}
+	return nil
+}
+
+func (m *Proposal) GetDiff() *Diff {
+	if x, ok := m.GetProposal().(*Proposal_Diff); ok {
+		return x.Diff
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*Proposal) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), []interface{}) {
+	return _Proposal_OneofMarshaler, _Proposal_OneofUnmarshaler, []interface{}{
+		(*Proposal_Pair)(nil),
+		(*Proposal_Diff)(nil),
+	}
+}
+
+func _Proposal_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*Proposal)
+	// proposal
+	switch x := m.Proposal.(type) {
+	case *Proposal_Pair:
+		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Pair); err != nil {
+			return err
+		}
+	case *Proposal_Diff:
+		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Diff); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("Proposal.Proposal has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _Proposal_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*Proposal)
+	switch tag {
+	case 1: // proposal.pair
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Pair)
+		err := b.DecodeMessage(msg)
+		m.Proposal = &Proposal_Pair{msg}
+		return true, err
+	case 2: // proposal.diff
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Diff)
+		err := b.DecodeMessage(msg)
+		m.Proposal = &Proposal_Diff{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
 type Pair struct {
 	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value []byte `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -164,6 +339,22 @@ type Pair struct {
 func (m *Pair) Reset()         { *m = Pair{} }
 func (m *Pair) String() string { return proto.CompactTextString(m) }
 func (*Pair) ProtoMessage()    {}
+
+// Diff is used for cluster merge
+type Diff struct {
+	Pairs []*Pair `protobuf:"bytes,1,rep,name=pairs" json:"pairs,omitempty"`
+}
+
+func (m *Diff) Reset()         { *m = Diff{} }
+func (m *Diff) String() string { return proto.CompactTextString(m) }
+func (*Diff) ProtoMessage()    {}
+
+func (m *Diff) GetPairs() []*Pair {
+	if m != nil {
+		return m.Pairs
+	}
+	return nil
+}
 
 func init() {
 	proto.RegisterType((*JoinRaftResponse)(nil), "proton.JoinRaftResponse")
@@ -175,8 +366,18 @@ func init() {
 	proto.RegisterType((*ListObjectsResponse)(nil), "proton.ListObjectsResponse")
 	proto.RegisterType((*ListMembersRequest)(nil), "proton.ListMembersRequest")
 	proto.RegisterType((*ListMembersResponse)(nil), "proton.ListMembersResponse")
+	proto.RegisterType((*StopRaftRequest)(nil), "proton.StopRaftRequest")
+	proto.RegisterType((*StopRaftResponse)(nil), "proton.StopRaftResponse")
+	proto.RegisterType((*MergeRequest)(nil), "proton.MergeRequest")
+	proto.RegisterType((*MergeResponse)(nil), "proton.MergeResponse")
+	proto.RegisterType((*MergeInitRequest)(nil), "proton.MergeInitRequest")
+	proto.RegisterType((*MergeInitResponse)(nil), "proton.MergeInitResponse")
+	proto.RegisterType((*MergeFinalizeRequest)(nil), "proton.MergeFinalizeRequest")
+	proto.RegisterType((*MergeFinalizeResponse)(nil), "proton.MergeFinalizeResponse")
 	proto.RegisterType((*NodeInfo)(nil), "proton.NodeInfo")
+	proto.RegisterType((*Proposal)(nil), "proton.Proposal")
 	proto.RegisterType((*Pair)(nil), "proton.Pair")
+	proto.RegisterType((*Diff)(nil), "proton.Diff")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -192,6 +393,17 @@ type RaftClient interface {
 	PutObject(ctx context.Context, in *PutObjectRequest, opts ...grpc.CallOption) (*PutObjectResponse, error)
 	ListObjects(ctx context.Context, in *ListObjectsRequest, opts ...grpc.CallOption) (*ListObjectsResponse, error)
 	ListMembers(ctx context.Context, in *ListMembersRequest, opts ...grpc.CallOption) (*ListMembersResponse, error)
+	// StopRaft sends a signal from a coordinator node to stop
+	// the raft process, it can be use for merge and split
+	StopRaft(ctx context.Context, in *StopRaftRequest, opts ...grpc.CallOption) (*StopRaftResponse, error)
+	// Merge is used to merge two raft clusters together
+	Merge(ctx context.Context, in *MergeRequest, opts ...grpc.CallOption) (*MergeResponse, error)
+	// MergeInit is internal to the initiator to coordinate the
+	// merge process amongst peers in the current raft
+	MergeInit(ctx context.Context, in *MergeInitRequest, opts ...grpc.CallOption) (*MergeInitResponse, error)
+	// MergeFinalize is called from the initiator to finalize the
+	// merge operation
+	MergeFinalize(ctx context.Context, in *MergeFinalizeRequest, opts ...grpc.CallOption) (*MergeFinalizeResponse, error)
 }
 
 type raftClient struct {
@@ -256,6 +468,42 @@ func (c *raftClient) ListMembers(ctx context.Context, in *ListMembersRequest, op
 	return out, nil
 }
 
+func (c *raftClient) StopRaft(ctx context.Context, in *StopRaftRequest, opts ...grpc.CallOption) (*StopRaftResponse, error) {
+	out := new(StopRaftResponse)
+	err := grpc.Invoke(ctx, "/proton.Raft/StopRaft", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *raftClient) Merge(ctx context.Context, in *MergeRequest, opts ...grpc.CallOption) (*MergeResponse, error) {
+	out := new(MergeResponse)
+	err := grpc.Invoke(ctx, "/proton.Raft/Merge", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *raftClient) MergeInit(ctx context.Context, in *MergeInitRequest, opts ...grpc.CallOption) (*MergeInitResponse, error) {
+	out := new(MergeInitResponse)
+	err := grpc.Invoke(ctx, "/proton.Raft/MergeInit", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *raftClient) MergeFinalize(ctx context.Context, in *MergeFinalizeRequest, opts ...grpc.CallOption) (*MergeFinalizeResponse, error) {
+	out := new(MergeFinalizeResponse)
+	err := grpc.Invoke(ctx, "/proton.Raft/MergeFinalize", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Raft service
 
 type RaftServer interface {
@@ -265,6 +513,17 @@ type RaftServer interface {
 	PutObject(context.Context, *PutObjectRequest) (*PutObjectResponse, error)
 	ListObjects(context.Context, *ListObjectsRequest) (*ListObjectsResponse, error)
 	ListMembers(context.Context, *ListMembersRequest) (*ListMembersResponse, error)
+	// StopRaft sends a signal from a coordinator node to stop
+	// the raft process, it can be use for merge and split
+	StopRaft(context.Context, *StopRaftRequest) (*StopRaftResponse, error)
+	// Merge is used to merge two raft clusters together
+	Merge(context.Context, *MergeRequest) (*MergeResponse, error)
+	// MergeInit is internal to the initiator to coordinate the
+	// merge process amongst peers in the current raft
+	MergeInit(context.Context, *MergeInitRequest) (*MergeInitResponse, error)
+	// MergeFinalize is called from the initiator to finalize the
+	// merge operation
+	MergeFinalize(context.Context, *MergeFinalizeRequest) (*MergeFinalizeResponse, error)
 }
 
 func RegisterRaftServer(s *grpc.Server, srv RaftServer) {
@@ -343,6 +602,54 @@ func _Raft_ListMembers_Handler(srv interface{}, ctx context.Context, dec func(in
 	return out, nil
 }
 
+func _Raft_StopRaft_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(StopRaftRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RaftServer).StopRaft(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Raft_Merge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(MergeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RaftServer).Merge(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Raft_MergeInit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(MergeInitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RaftServer).MergeInit(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Raft_MergeFinalize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(MergeFinalizeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RaftServer).MergeFinalize(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _Raft_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proton.Raft",
 	HandlerType: (*RaftServer)(nil),
@@ -371,6 +678,22 @@ var _Raft_serviceDesc = grpc.ServiceDesc{
 			MethodName: "ListMembers",
 			Handler:    _Raft_ListMembers_Handler,
 		},
+		{
+			MethodName: "StopRaft",
+			Handler:    _Raft_StopRaft_Handler,
+		},
+		{
+			MethodName: "Merge",
+			Handler:    _Raft_Merge_Handler,
+		},
+		{
+			MethodName: "MergeInit",
+			Handler:    _Raft_MergeInit_Handler,
+		},
+		{
+			MethodName: "MergeFinalize",
+			Handler:    _Raft_MergeFinalize_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{},
 }
@@ -390,25 +713,9 @@ func (m *JoinRaftResponse) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Success {
-		data[i] = 0x8
-		i++
-		if m.Success {
-			data[i] = 1
-		} else {
-			data[i] = 0
-		}
-		i++
-	}
-	if len(m.Error) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintProton(data, i, uint64(len(m.Error)))
-		i += copy(data[i:], m.Error)
-	}
 	if len(m.Nodes) > 0 {
 		for _, msg := range m.Nodes {
-			data[i] = 0x1a
+			data[i] = 0xa
 			i++
 			i = encodeVarintProton(data, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(data[i:])
@@ -436,22 +743,6 @@ func (m *LeaveRaftResponse) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Success {
-		data[i] = 0x8
-		i++
-		if m.Success {
-			data[i] = 1
-		} else {
-			data[i] = 0
-		}
-		i++
-	}
-	if len(m.Error) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintProton(data, i, uint64(len(m.Error)))
-		i += copy(data[i:], m.Error)
-	}
 	return i, nil
 }
 
@@ -470,22 +761,6 @@ func (m *SendResponse) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Success {
-		data[i] = 0x8
-		i++
-		if m.Success {
-			data[i] = 1
-		} else {
-			data[i] = 0
-		}
-		i++
-	}
-	if len(m.Error) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintProton(data, i, uint64(len(m.Error)))
-		i += copy(data[i:], m.Error)
-	}
 	return i, nil
 }
 
@@ -504,11 +779,11 @@ func (m *PutObjectRequest) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Object != nil {
+	if m.Proposal != nil {
 		data[i] = 0xa
 		i++
-		i = encodeVarintProton(data, i, uint64(m.Object.Size()))
-		n1, err := m.Object.MarshalTo(data[i:])
+		i = encodeVarintProton(data, i, uint64(m.Proposal.Size()))
+		n1, err := m.Proposal.MarshalTo(data[i:])
 		if err != nil {
 			return 0, err
 		}
@@ -532,22 +807,6 @@ func (m *PutObjectResponse) MarshalTo(data []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Success {
-		data[i] = 0x8
-		i++
-		if m.Success {
-			data[i] = 1
-		} else {
-			data[i] = 0
-		}
-		i++
-	}
-	if len(m.Error) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintProton(data, i, uint64(len(m.Error)))
-		i += copy(data[i:], m.Error)
-	}
 	return i, nil
 }
 
@@ -647,6 +906,172 @@ func (m *ListMembersResponse) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
+func (m *StopRaftRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *StopRaftRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *StopRaftResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *StopRaftResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MergeRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Node != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintProton(data, i, uint64(m.Node.Size()))
+		n2, err := m.Node.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	return i, nil
+}
+
+func (m *MergeResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MergeInitRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeInitRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Nodes) > 0 {
+		for _, msg := range m.Nodes {
+			data[i] = 0xa
+			i++
+			i = encodeVarintProton(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *MergeInitResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeInitResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MergeFinalizeRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeFinalizeRequest) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *MergeFinalizeResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MergeFinalizeResponse) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
 func (m *NodeInfo) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -688,6 +1113,59 @@ func (m *NodeInfo) MarshalTo(data []byte) (int, error) {
 	return i, nil
 }
 
+func (m *Proposal) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *Proposal) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Proposal != nil {
+		nn3, err := m.Proposal.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn3
+	}
+	return i, nil
+}
+
+func (m *Proposal_Pair) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.Pair != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintProton(data, i, uint64(m.Pair.Size()))
+		n4, err := m.Pair.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
+	}
+	return i, nil
+}
+func (m *Proposal_Diff) MarshalTo(data []byte) (int, error) {
+	i := 0
+	if m.Diff != nil {
+		data[i] = 0x12
+		i++
+		i = encodeVarintProton(data, i, uint64(m.Diff.Size()))
+		n5, err := m.Diff.MarshalTo(data[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n5
+	}
+	return i, nil
+}
 func (m *Pair) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -715,6 +1193,36 @@ func (m *Pair) MarshalTo(data []byte) (int, error) {
 			i++
 			i = encodeVarintProton(data, i, uint64(len(m.Value)))
 			i += copy(data[i:], m.Value)
+		}
+	}
+	return i, nil
+}
+
+func (m *Diff) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *Diff) MarshalTo(data []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Pairs) > 0 {
+		for _, msg := range m.Pairs {
+			data[i] = 0xa
+			i++
+			i = encodeVarintProton(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
 	return i, nil
@@ -750,13 +1258,6 @@ func encodeVarintProton(data []byte, offset int, v uint64) int {
 func (m *JoinRaftResponse) Size() (n int) {
 	var l int
 	_ = l
-	if m.Success {
-		n += 2
-	}
-	l = len(m.Error)
-	if l > 0 {
-		n += 1 + l + sovProton(uint64(l))
-	}
 	if len(m.Nodes) > 0 {
 		for _, e := range m.Nodes {
 			l = e.Size()
@@ -769,34 +1270,20 @@ func (m *JoinRaftResponse) Size() (n int) {
 func (m *LeaveRaftResponse) Size() (n int) {
 	var l int
 	_ = l
-	if m.Success {
-		n += 2
-	}
-	l = len(m.Error)
-	if l > 0 {
-		n += 1 + l + sovProton(uint64(l))
-	}
 	return n
 }
 
 func (m *SendResponse) Size() (n int) {
 	var l int
 	_ = l
-	if m.Success {
-		n += 2
-	}
-	l = len(m.Error)
-	if l > 0 {
-		n += 1 + l + sovProton(uint64(l))
-	}
 	return n
 }
 
 func (m *PutObjectRequest) Size() (n int) {
 	var l int
 	_ = l
-	if m.Object != nil {
-		l = m.Object.Size()
+	if m.Proposal != nil {
+		l = m.Proposal.Size()
 		n += 1 + l + sovProton(uint64(l))
 	}
 	return n
@@ -805,13 +1292,6 @@ func (m *PutObjectRequest) Size() (n int) {
 func (m *PutObjectResponse) Size() (n int) {
 	var l int
 	_ = l
-	if m.Success {
-		n += 2
-	}
-	l = len(m.Error)
-	if l > 0 {
-		n += 1 + l + sovProton(uint64(l))
-	}
 	return n
 }
 
@@ -851,6 +1331,64 @@ func (m *ListMembersResponse) Size() (n int) {
 	return n
 }
 
+func (m *StopRaftRequest) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *StopRaftResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MergeRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Node != nil {
+		l = m.Node.Size()
+		n += 1 + l + sovProton(uint64(l))
+	}
+	return n
+}
+
+func (m *MergeResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MergeInitRequest) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Nodes) > 0 {
+		for _, e := range m.Nodes {
+			l = e.Size()
+			n += 1 + l + sovProton(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *MergeInitResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MergeFinalizeRequest) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MergeFinalizeResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
 func (m *NodeInfo) Size() (n int) {
 	var l int
 	_ = l
@@ -872,6 +1410,33 @@ func (m *NodeInfo) Size() (n int) {
 	return n
 }
 
+func (m *Proposal) Size() (n int) {
+	var l int
+	_ = l
+	if m.Proposal != nil {
+		n += m.Proposal.Size()
+	}
+	return n
+}
+
+func (m *Proposal_Pair) Size() (n int) {
+	var l int
+	_ = l
+	if m.Pair != nil {
+		l = m.Pair.Size()
+		n += 1 + l + sovProton(uint64(l))
+	}
+	return n
+}
+func (m *Proposal_Diff) Size() (n int) {
+	var l int
+	_ = l
+	if m.Diff != nil {
+		l = m.Diff.Size()
+		n += 1 + l + sovProton(uint64(l))
+	}
+	return n
+}
 func (m *Pair) Size() (n int) {
 	var l int
 	_ = l
@@ -882,6 +1447,18 @@ func (m *Pair) Size() (n int) {
 	if m.Value != nil {
 		l = len(m.Value)
 		if l > 0 {
+			n += 1 + l + sovProton(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *Diff) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Pairs) > 0 {
+		for _, e := range m.Pairs {
+			l = e.Size()
 			n += 1 + l + sovProton(uint64(l))
 		}
 	}
@@ -931,55 +1508,6 @@ func (m *JoinRaftResponse) Unmarshal(data []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				v |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Success = bool(v != 0)
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthProton
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Error = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Nodes", wireType)
 			}
@@ -1060,55 +1588,6 @@ func (m *LeaveRaftResponse) Unmarshal(data []byte) error {
 			return fmt.Errorf("proto: LeaveRaftResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				v |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Success = bool(v != 0)
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthProton
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Error = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipProton(data[iNdEx:])
@@ -1159,55 +1638,6 @@ func (m *SendResponse) Unmarshal(data []byte) error {
 			return fmt.Errorf("proto: SendResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				v |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Success = bool(v != 0)
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthProton
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Error = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipProton(data[iNdEx:])
@@ -1260,7 +1690,7 @@ func (m *PutObjectRequest) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Object", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Proposal", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1284,10 +1714,10 @@ func (m *PutObjectRequest) Unmarshal(data []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Object == nil {
-				m.Object = &Pair{}
+			if m.Proposal == nil {
+				m.Proposal = &Proposal{}
 			}
-			if err := m.Object.Unmarshal(data[iNdEx:postIndex]); err != nil {
+			if err := m.Proposal.Unmarshal(data[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1341,55 +1771,6 @@ func (m *PutObjectResponse) Unmarshal(data []byte) error {
 			return fmt.Errorf("proto: PutObjectResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				v |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Success = bool(v != 0)
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowProton
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthProton
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Error = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipProton(data[iNdEx:])
@@ -1673,6 +2054,470 @@ func (m *ListMembersResponse) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+func (m *StopRaftRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StopRaftRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StopRaftRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *StopRaftResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: StopRaftResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: StopRaftResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Node", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Node == nil {
+				m.Node = &NodeInfo{}
+			}
+			if err := m.Node.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeInitRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeInitRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeInitRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Nodes", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Nodes = append(m.Nodes, &NodeInfo{})
+			if err := m.Nodes[len(m.Nodes)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeInitResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeInitResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeInitResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeFinalizeRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeFinalizeRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeFinalizeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MergeFinalizeResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MergeFinalizeResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MergeFinalizeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *NodeInfo) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
@@ -1829,6 +2674,120 @@ func (m *NodeInfo) Unmarshal(data []byte) error {
 	}
 	return nil
 }
+func (m *Proposal) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Proposal: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Proposal: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pair", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Pair{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Proposal = &Proposal_Pair{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Diff", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &Diff{}
+			if err := v.Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Proposal = &Proposal_Diff{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *Pair) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
@@ -1914,6 +2873,87 @@ func (m *Pair) Unmarshal(data []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Value = append([]byte{}, data[iNdEx:postIndex]...)
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProton(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthProton
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Diff) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProton
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Diff: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Diff: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Pairs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProton
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProton
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Pairs = append(m.Pairs, &Pair{})
+			if err := m.Pairs[len(m.Pairs)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

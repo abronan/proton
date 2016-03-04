@@ -12,32 +12,35 @@ service Raft {
   rpc PutObject(PutObjectRequest) returns (PutObjectResponse) {}
   rpc ListObjects(ListObjectsRequest) returns (ListObjectsResponse) {}
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {}
+
+  // StopRaft sends a signal from a coordinator node to stop
+  // the raft process, it can be use for merge and split
+  rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
+
+  // Merge is used to merge two raft clusters together
+  rpc Merge(MergeRequest) returns (MergeResponse) {}
+
+  // MergeInit is internal to the initiator to coordinate the
+  // merge process amongst peers in the current raft
+  rpc MergeInit(MergeInitRequest) returns (MergeInitResponse) {}
+
+  // MergeFinalize is called from the initiator to finalize the
+  // merge operation
+  rpc MergeFinalize(MergeFinalizeRequest) returns (MergeFinalizeResponse) {}
 }
 
 message JoinRaftResponse {
-  bool success = 1;
-  string error = 2;
-  repeated NodeInfo nodes = 3;
+  repeated NodeInfo nodes = 1;
 }
 
-message LeaveRaftResponse {
-  bool success = 1;
-  string error = 2;
-}
+message LeaveRaftResponse {}
 
-message SendResponse {
-  bool success = 1;
-  string error = 2;
-}
+message SendResponse {}
 
 message PutObjectRequest {
-  Pair object = 1;
+  Proposal proposal = 1;
 }
-
-message PutObjectResponse {
-  bool success = 1;
-  string error = 2;
-}
+message PutObjectResponse {}
 
 message ListObjectsRequest {}
 
@@ -51,6 +54,22 @@ message ListMembersResponse {
   repeated NodeInfo members = 1;
 }
 
+message StopRaftRequest {}
+message StopRaftResponse {}
+
+message MergeRequest {
+  NodeInfo node = 1;
+}
+message MergeResponse {}
+
+message MergeInitRequest {
+  repeated NodeInfo nodes = 1;
+}
+message MergeInitResponse {}
+
+message MergeFinalizeRequest {}
+message MergeFinalizeResponse {}
+
 message NodeInfo {
   uint64 ID = 1;
   string Addr = 2;
@@ -58,7 +77,19 @@ message NodeInfo {
   string Error = 4;
 }
 
+message Proposal {
+  oneof proposal {
+    Pair pair = 1;
+    Diff diff = 2;
+  }
+}
+
 message Pair {
   string key = 1;
   bytes value = 2;
+}
+
+// Diff is used for cluster merge
+message Diff {
+  repeated Pair pairs = 1;
 }

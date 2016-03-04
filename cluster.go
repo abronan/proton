@@ -36,6 +36,13 @@ func (c *Cluster) Peers() map[uint64]*Peer {
 	return peers
 }
 
+// GetPeer returns informations on a given peer
+func (c *Cluster) GetPeer(id uint64) *Peer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.peers[id]
+}
+
 // AddPeer adds a node to our neighbors
 func (c *Cluster) AddPeer(peer *Peer) {
 	c.lock.Lock()
